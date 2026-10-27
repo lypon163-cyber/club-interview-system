@@ -224,7 +224,6 @@ def admin_list(sort: str = "id"):
     finally:
         conn.close()
 
-# 🌟 极简队列：只查已签到的人
 @app.get("/api/admin/queue")
 def get_queue():
     conn = get_db()
@@ -235,6 +234,15 @@ def get_queue():
         return {"status": "success", "data": rows}
     finally:
         conn.close()
+
+# 🌟 新增：一键备份数据库
+@app.get("/api/admin/backup_db")
+def backup_db():
+    if os.path.exists('interview.db'):
+        with open('interview.db', 'rb') as f:
+            db_bytes = f.read()
+        return Response(content=db_bytes, media_type="application/octet-stream", headers={"Content-Disposition": "attachment; filename=interview_backup.db"})
+    raise HTTPException(status_code=404, detail="Database not found")
 
 @app.get("/api/admin/download/{barcode_id}")
 def admin_download(barcode_id: str):
@@ -336,24 +344,36 @@ def submit_score(barcode_id: str, data: ScoreSubmit):
     finally:
         conn.close()
 
+# 🌟 修改：支持兜底模糊搜索（扫码枪坏了也能输学号/姓名/尾号）
 @app.post("/api/admin/checkin")
 def check_in(data: CheckInRequest):
     conn = get_db()
     try:
         c = conn.cursor()
-        barcode_id = data.barcode_id.strip().upper()
-        c.execute("SELECT name, department, status FROM applications WHERE barcode_id = ?", (barcode_id,))
-        res = c.fetchone()
+        code = data.barcode_id.strip().upper()
+        
+        # 如果以 TG 开头，走精确匹配
+        if code.startswith("TG"):
+            c.execute("SELECT barcode_id, name, department, status FROM applications WHERE barcode_id = ?", (code,))
+            res = c.fetchone()
+        else:
+            # 否则，尝试用姓名、学号、或者手机尾号来模糊搜索
+            c.execute("SELECT barcode_id, name, department, status FROM applications WHERE student_id = ? OR name = ? OR phone_last4 = ?", (code, code, code))
+            res = c.fetchone()
 
-        if not res: return {"status": "error", "message": "❌ 找不到该编号！"}
-        name, dept, current_status = res
+        if not res: 
+            return {"status": "error", "message": "❌ 未找到该号码/编号/姓名，请核实！"}
+        
+        barcode, name, dept, current_status = res
+        
         if current_status == '未通过': return {"status": "error", "message": f"❌ {name} 预审未通过！"}
         if current_status in ['已签到', '已录取', '未录取']:
             return {"status": "error", "message": f"⚠️ {name} 当前状态为 {current_status}，无需重复签到！"}
         
-        c.execute("UPDATE applications SET status = '已签到' WHERE barcode_id = ?", (barcode_id,))
+        c.execute("UPDATE applications SET status = '已签到' WHERE barcode_id = ?", (barcode,))
         conn.commit()
-        return {"status": "success", "message": f"✅ {name}（{dept}）签到成功！"}
+        # 注意这里返回了真实的 barcode_id，防止前端拿姓名去查PDF报错
+        return {"status": "success", "message": f"✅ {name}（{dept}）签到成功！", "barcode_id": barcode}
     finally:
         conn.close()
 

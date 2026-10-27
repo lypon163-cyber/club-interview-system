@@ -55,7 +55,6 @@
         .step.fail .step-text { color: #ff4d4f; }
 
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
-        /* 🌟 优化：弹窗变宽 */
         .modal-content { background: white; width: 95%; max-width: 1100px; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; max-height: 90vh; }
         .modal-header { padding: 15px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
         .modal-body { padding: 20px; overflow-y: hidden; display: flex; flex-direction: column; }
@@ -72,12 +71,10 @@
         .action-btn-group { display: none; margin-top: 20px; justify-content: center; gap: 15px; }
         .action-btn-group .btn { font-size: 16px; padding: 12px 24px; }
 
-        /* 🌟 分屏布局样式 */
         .split-layout { display: flex; gap: 20px; height: 100%; overflow: hidden; }
         .left-panel { flex: 1.2; overflow-y: auto; padding-right: 15px; border-right: 1px solid var(--border); }
         .right-panel { flex: 1; display: flex; flex-direction: column; background: #fafafa; padding: 20px; border-radius: 8px; border: 1px solid var(--border); }
         
-        /* 右侧打分区域 */
         .score-section { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
         .score-inputs { display: flex; flex-direction: column; gap: 15px; margin-bottom: 15px; }
         .score-inputs label { color: #166534; margin-bottom: 5px; }
@@ -85,13 +82,22 @@
         .score-inputs input:focus { border-color: #22c55e; box-shadow: 0 0 0 2px rgba(34,197,94,0.2); }
         .eval-comment { width: 100%; padding: 10px; border: 1px solid #86efac; border-radius: 6px; outline: none; resize: vertical; min-height: 100px; font-size: 14px; }
 
-        /* 移动端适配分屏 */
         @media (max-width: 768px) {
             .modal-content { width: 100%; height: 100%; max-height: 100vh; border-radius: 0; }
             .split-layout { flex-direction: column; overflow-y: auto; }
             .left-panel { border-right: none; border-bottom: 1px solid var(--border); padding-right: 0; padding-bottom: 20px; overflow-y: visible; flex: none; }
             .right-panel { overflow-y: visible; flex: none; }
         }
+        
+        .queue-list { margin-top: 20px; }
+        .queue-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #fff; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; transition: 0.2s; }
+        .queue-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-color: var(--primary); }
+        .queue-item:first-child { border-left: 4px solid var(--primary); }
+        .queue-info { display: flex; align-items: center; gap: 20px; }
+        .queue-index { background: #e6f7ff; color: var(--primary); font-weight: bold; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        .queue-name { font-size: 16px; font-weight: bold; color: #333; }
+        .queue-dept { font-size: 14px; color: #888; }
+        .queue-empty { text-align: center; color: #9ca3af; margin-top: 40px; font-size: 15px; }
     </style>
 </head>
 <body>
@@ -147,6 +153,7 @@
                 <span id="tab_checkin" onclick="switchAdminTab('checkin')">扫码签到</span>
             </div>
             <div class="actions">
+                <button class="btn btn-sm" style="background: #fa8c16;" onclick="backupDB()">☁️ 备份数据库</button>
                 <button class="btn btn-sm btn-outline" onclick="exportCSV()">导出 CSV</button>
                 <button class="btn btn-sm btn-outline" onclick="logout()">退出</button>
             </div>
@@ -172,8 +179,8 @@
         <div id="adminCheckInView" style="display: none;">
             <div class="scan-container">
                 <h2 style="margin-bottom: 20px; color: #333;">请使用扫码枪扫描 PDF 上的编号</h2>
-                <p style="color: #888; margin-bottom: 30px;">（或者手动输入 TG 编号后按回车）</p>
-                <input type="text" id="scanInput" class="scan-input" placeholder="TGXXXXXXXX" autocomplete="off">
+                <p style="color: #888; margin-bottom: 30px;">（如果扫码枪坏了，可直接输入学号/姓名/手机尾号按回车）</p>
+                <input type="text" id="scanInput" class="scan-input" placeholder="扫码或手动输入..." autocomplete="off">
                 <div id="scanResult" class="scan-result"></div>
                 <div id="scanActionBox" class="action-btn-group">
                     <button class="btn" onclick="previewPDF(lastScannedCode)">📄 查看 PDF 报名表</button>
@@ -184,7 +191,7 @@
     </div>
 </div>
 
-<!-- 🌟 分屏详情/打分弹窗 -->
+<!-- 详情/打分弹窗 -->
 <div id="reviewModal" class="modal-overlay">
     <div class="modal-content">
         <div class="modal-header">
@@ -194,7 +201,6 @@
         
         <div class="modal-body" style="padding: 0;">
             <div class="split-layout">
-                <!-- 左侧：候选人信息 -->
                 <div class="left-panel" style="padding: 20px;">
                     <p><strong>意向部门：</strong> <span id="rv_dept" style="color: var(--primary); font-weight: bold;"></span></p>
                     
@@ -214,7 +220,6 @@
                     <div class="ai-box" id="rv_ai_questions" style="display: none; background: #e0f2fe; border-color: #bae6fd; color: #0369a1;"></div>
                 </div>
 
-                <!-- 右侧：打分与决策 -->
                 <div class="right-panel">
                     <div class="score-section">
                         <h3 style="font-size: 16px; color: #166534; margin-bottom: 15px;">📝 面试评分</h3>
@@ -241,7 +246,6 @@
     </div>
 </div>
 
-<!-- PDF 预览弹窗 -->
 <div id="pdfModal" class="modal-overlay">
     <div class="modal-content" style="width: 85%; height: 85%; max-width: none;">
         <div class="modal-header">
@@ -253,7 +257,6 @@
 </div>
 
 <script>
-    // === 原有 JS 逻辑完全保持不变，不需要改动任何代码 ===
     let currentUser = "";
     let currentRole = "";
     let currentReviewId = "";
@@ -503,7 +506,8 @@
             if (data.status === 'success') {
                 scanResult.className = "scan-result success-text";
                 scanResult.innerText = data.message;
-                lastScannedCode = code;
+                // 🌟 接收后端返回的真实 barcode_id (防止模糊搜索输入的是姓名)
+                lastScannedCode = data.barcode_id;
                 scanActionBox.style.display = 'flex'; 
             } else {
                 scanResult.className = "scan-result error-text";
@@ -611,6 +615,12 @@
         document.getElementById('pdfIframe').src = "";
     }
     function exportCSV() { window.open('/api/admin/export', '_blank'); }
+    
+    // 🌟 备份数据库
+    function backupDB() {
+        window.open('/api/admin/backup_db', '_blank');
+    }
+
     function logout() {
         currentUser = ""; currentRole = "";
         document.getElementById('login_user').value = "";
