@@ -65,6 +65,16 @@ def init_db():
             c.execute("ALTER TABLE applications ADD COLUMN status TEXT DEFAULT '待审核'")
         if 'ai_summary' not in columns:
             c.execute("ALTER TABLE applications ADD COLUMN ai_summary TEXT DEFAULT ''")
+        
+        # 🌟 新增：打分相关字段
+        if 'score_exp' not in columns:
+            c.execute("ALTER TABLE applications ADD COLUMN score_exp INTEGER DEFAULT 0") # 表达分
+        if 'score_skill' not in columns:
+            c.execute("ALTER TABLE applications ADD COLUMN score_skill INTEGER DEFAULT 0") # 技能分
+        if 'score_total' not in columns:
+            c.execute("ALTER TABLE applications ADD COLUMN score_total INTEGER DEFAULT 0") # 总分
+        if 'eval_comment' not in columns:
+            c.execute("ALTER TABLE applications ADD COLUMN eval_comment TEXT DEFAULT ''") # 评语
             
         c.execute("SELECT * FROM users WHERE username = 'gjyyadmin'")
         if not c.fetchone():
@@ -75,6 +85,7 @@ def init_db():
         conn.close()
 init_db()
 
+# --- 数据模型 ---
 class UserAuth(BaseModel):
     username: str
     password: str
@@ -90,6 +101,14 @@ class StatusUpdate(BaseModel):
 class CheckInRequest(BaseModel):
     barcode_id: str
 
+# 🌟 新增：打分数据模型
+class ScoreSubmit(BaseModel):
+    score_exp: int
+    score_skill: int
+    score_total: int
+    eval_comment: str
+
+# --- PDF 生成 ---
 def generate_pdf(app_data):
     barcode_id, name, student_id, phone, dept, ps = app_data[:6]
     pdf_filename = f"{barcode_id}.pdf"
@@ -143,6 +162,7 @@ def generate_pdf(app_data):
     os.remove(qr_path)
     return pdf_filename
 
+# --- 路由与接口 ---
 @app.get("/", response_class=HTMLResponse)
 def read_index():
     with open("apply.html", "r", encoding="utf-8") as f:
@@ -215,7 +235,7 @@ def admin_list():
     conn = get_db()
     try:
         c = conn.cursor()
-        c.execute("SELECT barcode_id, name, student_id, department, phone_last4, status FROM applications ORDER BY id DESC")
+        c.execute("SELECT barcode_id, name, student_id, department, phone_last4, status, score_total FROM applications ORDER BY id DESC")
         rows = c.fetchall()
         return {"status": "success", "data": rows}
     finally:
@@ -244,13 +264,17 @@ def admin_detail(barcode_id: str):
     conn = get_db()
     try:
         c = conn.cursor()
-        c.execute("SELECT name, department, ps_content, ai_summary, status FROM applications WHERE barcode_id = ?", (barcode_id,))
+        # 🌟 返回新增的打分字段
+        c.execute("SELECT name, department, ps_content, ai_summary, status, score_exp, score_skill, score_total, eval_comment FROM applications WHERE barcode_id = ?", (barcode_id,))
         res = c.fetchone()
     finally:
         conn.close()
         
     if res:
-        return {"status": "success", "data": {"name": res[0], "dept": res[1], "ps": res[2], "ai_summary": res[3], "status": res[4]}}
+        return {"status": "success", "data": {
+            "name": res[0], "dept": res[1], "ps": res[2], "ai_summary": res[3], "status": res[4],
+            "score_exp": res[5], "score_skill": res[6], "score_total": res[7], "eval_comment": res[8]
+        }}
     return {"status": "error", "message": "找不到记录"}
 
 @app.post("/api/admin/ai_summarize/{barcode_id}")
@@ -325,6 +349,19 @@ def update_status(barcode_id: str, data: StatusUpdate):
     finally:
         conn.close()
 
+# 🌟 新增：保存打分接口
+@app.post("/api/admin/score/{barcode_id}")
+def submit_score(barcode_id: str, data: ScoreSubmit):
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        c.execute("UPDATE applications SET score_exp=?, score_skill=?, score_total=?, eval_comment=? WHERE barcode_id=?",
+                  (data.score_exp, data.score_skill, data.score_total, data.eval_comment, barcode_id))
+        conn.commit()
+        return {"status": "success", "message": "评分保存成功"}
+    finally:
+        conn.close()
+
 @app.post("/api/admin/checkin")
 def check_in(data: CheckInRequest):
     conn = get_db()
@@ -356,7 +393,8 @@ def admin_export():
     conn = get_db()
     try:
         c = conn.cursor()
-        c.execute("SELECT barcode_id, name, student_id, phone_last4, department, ps_content, status FROM applications")
+        # 🌟 导出增加分数与评语
+        c.execute("SELECT barcode_id, name, student_id, phone_last4, department, ps_content, status, score_exp, score_skill, score_total, eval_comment FROM applications")
         rows = c.fetchall()
     finally:
         conn.close()
@@ -364,7 +402,7 @@ def admin_export():
     output = io.StringIO()
     output.write('\ufeff')
     writer = csv.writer(output)
-    writer.writerow(["专属编号", "姓名", "学号", "手机尾号", "意向部门", "个人陈述", "当前状态"])
+    writer.writerow(["专属编号", "姓名", "学号", "手机尾号", "意向部门", "个人陈述", "当前状态", "表达分", "技能分", "总分", "面试评语"])
     writer.writerows(rows)
     
     response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv")

@@ -7,7 +7,7 @@
         :root { --primary: #1890ff; --bg: #f0f2f5; --text-main: #333333; --border: #d9d9d9; }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
         body { background: var(--bg); min-height: 100vh; display: flex; justify-content: center; align-items: flex-start; padding-top: 5vh; color: var(--text-main); }
-        .container { width: 100%; max-width: 900px; padding: 20px; }
+        .container { width: 100%; max-width: 950px; padding: 20px; }
         
         .card { background: #ffffff; padding: 40px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: none; }
         .card.active { display: block; animation: fadeIn 0.3s ease; }
@@ -46,23 +46,30 @@
         .status-box strong { font-size: 24px; color: #52c41a; letter-spacing: 1px; }
 
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
-        .modal-content { background: white; width: 80%; max-width: 700px; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; max-height: 85vh; }
+        .modal-content { background: white; width: 80%; max-width: 750px; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; max-height: 90vh; }
         .modal-header { padding: 15px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
         .modal-body { padding: 20px; overflow-y: auto; }
         
         .ai-box { background: #f5f3ff; border: 1px solid #ddd6fe; padding: 15px; border-radius: 6px; margin: 15px 0; font-size: 14px; line-height: 1.5; color: #4c1d95;}
         .ps-content { background: #f9fafb; padding: 15px; border-radius: 6px; border: 1px solid var(--border); font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
 
-        /* 签到专用样式 */
         .scan-container { text-align: center; padding: 50px 20px; }
         .scan-input { font-size: 28px !important; text-align: center; letter-spacing: 2px; font-weight: bold; padding: 20px !important; border: 3px solid var(--primary) !important; width: 80% !important; margin: 0 auto; }
         .scan-result { margin-top: 30px; font-size: 24px; font-weight: bold; min-height: 40px; }
         .success-text { color: #52c41a; }
         .error-text { color: #ff4d4f; }
         
-        /* 签到后的操作按钮组 */
         .action-btn-group { display: none; margin-top: 20px; justify-content: center; gap: 15px; }
         .action-btn-group .btn { font-size: 16px; padding: 12px 24px; }
+
+        /* 🌟 打分区域样式 */
+        .score-section { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 20px; border-radius: 8px; margin-top: 25px; }
+        .score-inputs { display: flex; gap: 15px; margin-bottom: 15px; }
+        .score-inputs div { flex: 1; }
+        .score-inputs label { color: #166534; }
+        .score-inputs input { border-color: #86efac; }
+        .score-inputs input:focus { border-color: #22c55e; box-shadow: 0 0 0 2px rgba(34,197,94,0.2); }
+        .eval-comment { width: 100%; padding: 10px; border: 1px solid #86efac; border-radius: 6px; outline: none; resize: vertical; min-height: 60px; }
     </style>
 </head>
 <body>
@@ -122,38 +129,33 @@
             </div>
         </div>
         
-        <!-- 列表视图 -->
         <div id="adminListView">
             <table>
-                <thead><tr><th>编号</th><th>姓名</th><th>学号</th><th>部门</th><th>状态</th><th>操作</th></tr></thead>
+                <thead><tr><th>编号</th><th>姓名</th><th>部门</th><th>状态</th><th>总分</th><th>操作</th></tr></thead>
                 <tbody id="adminTableBody"></tbody>
             </table>
         </div>
 
-        <!-- 签到视图 -->
         <div id="adminCheckInView" style="display: none;">
             <div class="scan-container">
                 <h2 style="margin-bottom: 20px; color: #333;">请使用扫码枪扫描 PDF 上的编号</h2>
                 <p style="color: #888; margin-bottom: 30px;">（或者手动输入 TG 编号后按回车）</p>
                 <input type="text" id="scanInput" class="scan-input" placeholder="TGXXXXXXXX" autocomplete="off">
-                
                 <div id="scanResult" class="scan-result"></div>
-                
-                <!-- 签到成功后的操作按钮组 -->
                 <div id="scanActionBox" class="action-btn-group">
                     <button class="btn" onclick="previewPDF(lastScannedCode)">📄 查看 PDF 报名表</button>
-                    <button class="btn btn-outline" onclick="openReview(lastScannedCode)">🔍 查看文字详情</button>
+                    <button class="btn btn-outline" onclick="openReview(lastScannedCode)">🔍 查看详情与打分</button>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- 审核 & 详情弹窗 -->
+<!-- 审核 & 打分弹窗 -->
 <div id="reviewModal" class="modal-overlay">
     <div class="modal-content">
         <div class="modal-header">
-            <h3 style="font-size: 16px;">报名表审核 - <span id="rv_name"></span></h3>
+            <h3 style="font-size: 16px;">详情与面试打分 - <span id="rv_name"></span></h3>
             <button class="btn btn-sm btn-outline" onclick="closeReview()">关闭</button>
         </div>
         <div class="modal-body">
@@ -167,16 +169,37 @@
             </div>
             <div class="ai-box" id="rv_ai_summary" style="display: none;"></div>
 
-            <!-- AI 面试题生成区域 -->
             <div style="margin-top: 20px; display: flex; align-items: center; justify-content: space-between;">
                 <strong>AI 面试问题定制：</strong>
                 <button class="btn btn-sm btn-ai" onclick="generateAIQuestions()" id="btnAiQ">✨ 生成专属面试题</button>
             </div>
             <div class="ai-box" id="rv_ai_questions" style="display: none; background: #e0f2fe; border-color: #bae6fd; color: #0369a1;"></div>
 
+            <!-- 🌟 打分区域 -->
+            <div class="score-section">
+                <h3 style="font-size: 15px; color: #166534; margin-bottom: 15px;">📝 面试官打分</h3>
+                <div class="score-inputs">
+                    <div>
+                        <label>沟通表达 (1-10)</label>
+                        <input type="number" id="score_exp" min="1" max="10" placeholder="0">
+                    </div>
+                    <div>
+                        <label>专业技能 (1-10)</label>
+                        <input type="number" id="score_skill" min="1" max="10" placeholder="0">
+                    </div>
+                    <div>
+                        <label>综合评价 (1-100)</label>
+                        <input type="number" id="score_total" min="1" max="100" placeholder="0">
+                    </div>
+                </div>
+                <label>评语备注</label>
+                <textarea id="eval_comment" class="eval-comment" placeholder="记录候选人亮点或淘汰原因..."></textarea>
+                <button class="btn" style="background: #52c41a; width: 100%; margin-top: 15px;" onclick="submitScore()">保存评分</button>
+            </div>
+
             <div style="margin-top: 30px; border-top: 1px solid var(--border); padding-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
                 <button class="btn btn-outline" onclick="updateStatus('未通过')">❌ 预审未通过</button>
-                <button class="btn" style="background: #52c41a;" onclick="updateStatus('初筛通过')">✅ 预审通过</button>
+                <button class="btn" onclick="updateStatus('初筛通过')">✅ 预审通过</button>
             </div>
         </div>
     </div>
@@ -203,7 +226,6 @@
         document.getElementById(id).classList.add('active');
     }
 
-    // 登录
     async function login() {
         const username = document.getElementById('login_user').value;
         const password = document.getElementById('login_pwd').value;
@@ -238,7 +260,6 @@
         if(data.status === 'success') switchCard('loginCard');
     }
 
-    // === 申请人逻辑 ===
     async function checkMyStatus() {
         const res = await fetch(`/api/my_application?username=${currentUser}`);
         const data = await res.json();
@@ -284,7 +305,6 @@
         }
     }
 
-    // === 管理员逻辑 ===
     function switchAdminTab(tab) {
         document.getElementById('tab_list').classList.remove('active');
         document.getElementById('tab_checkin').classList.remove('active');
@@ -308,20 +328,23 @@
         tbody.innerHTML = "";
         
         data.data.forEach(row => {
-            let statusColor = '#fa8c16'; // 默认橙色
+            let statusColor = '#fa8c16'; 
             if (row[5] === '初筛通过') statusColor = '#52c41a';
             if (row[5] === '未通过') statusColor = '#ff4d4f';
             if (row[5] === '已签到') statusColor = '#1890ff';
+
+            // row 现在包含总分字段 row[6]
+            let scoreDisplay = row[6] > 0 ? `<strong style="color: #d97706;">${row[6]}分</strong>` : '<span style="color:#ccc;">未打分</span>';
 
             tbody.innerHTML += `
                 <tr>
                     <td>${row[0]}</td>
                     <td>${row[1]}</td>
-                    <td>${row[2]}</td>
                     <td>${row[3]}</td>
                     <td style="color: ${statusColor}; font-weight: bold;">${row[5]}</td>
+                    <td>${scoreDisplay}</td>
                     <td>
-                        <button class="btn btn-sm" onclick="openReview('${row[0]}')">审核</button>
+                        <button class="btn btn-sm" onclick="openReview('${row[0]}')">详情/打分</button>
                         <button class="btn btn-sm btn-outline" onclick="previewPDF('${row[0]}')">PDF</button>
                     </td>
                 </tr>
@@ -329,21 +352,20 @@
         });
     }
 
-    // === 🌟 扫码签到逻辑 ===
     const scanInput = document.getElementById('scanInput');
     const scanResult = document.getElementById('scanResult');
     const scanActionBox = document.getElementById('scanActionBox');
-    let lastScannedCode = ""; // 记录刚刚扫码签到的人
+    let lastScannedCode = ""; 
     
     scanInput.addEventListener('keypress', async function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
-            const code = scanInput.value.trim().toUpperCase(); // 自动转大写
+            const code = scanInput.value.trim().toUpperCase(); 
             if(!code) return;
 
             scanResult.className = "scan-result"; 
             scanResult.innerText = "正在查询...";
-            scanActionBox.style.display = 'none'; // 先隐藏按钮
+            scanActionBox.style.display = 'none'; 
             
             const res = await fetch('/api/admin/checkin', {
                 method: 'POST', 
@@ -355,8 +377,6 @@
             if (data.status === 'success') {
                 scanResult.className = "scan-result success-text";
                 scanResult.innerText = data.message;
-                
-                // 🌟 签到成功，记录编号并显示下方按钮
                 lastScannedCode = code;
                 scanActionBox.style.display = 'flex'; 
             } else {
@@ -365,11 +385,10 @@
             }
 
             scanInput.value = "";
-            loadAdminList(); // 刷新列表状态
+            loadAdminList(); 
         }
     });
 
-    // 审核弹窗逻辑
     async function openReview(barcode_id) {
         currentReviewId = barcode_id;
         const res = await fetch(`/api/admin/detail/${barcode_id}`);
@@ -389,10 +408,15 @@
                 aiBox.style.display = 'none';
             }
 
-            // 清空之前的面试题
             const qBox = document.getElementById('rv_ai_questions');
             qBox.innerText = "";
             qBox.style.display = 'none';
+
+            // 🌟 回显打分数据
+            document.getElementById('score_exp').value = data.data.score_exp || '';
+            document.getElementById('score_skill').value = data.data.score_skill || '';
+            document.getElementById('score_total').value = data.data.score_total || '';
+            document.getElementById('eval_comment').value = data.data.eval_comment || '';
 
             document.getElementById('reviewModal').style.display = 'flex';
         }
@@ -400,7 +424,6 @@
 
     function closeReview() { document.getElementById('reviewModal').style.display = 'none'; }
 
-    // AI 生成摘要
     async function generateAISummary() {
         const btn = document.getElementById('btnAi');
         const aiBox = document.getElementById('rv_ai_summary');
@@ -415,12 +438,9 @@
         if(data.status === 'success') {
             aiBox.innerText = data.summary;
             aiBox.style.display = 'block';
-        } else {
-            alert(data.message);
-        }
+        } else alert(data.message);
     }
 
-    // AI 生成面试题
     async function generateAIQuestions() {
         const btn = document.getElementById('btnAiQ');
         const qBox = document.getElementById('rv_ai_questions');
@@ -435,8 +455,31 @@
         if(data.status === 'success') {
             qBox.innerText = data.questions;
             qBox.style.display = 'block';
+        } else alert(data.message);
+    }
+
+    // 🌟 提交打分
+    async function submitScore() {
+        const data = {
+            score_exp: parseInt(document.getElementById('score_exp').value) || 0,
+            score_skill: parseInt(document.getElementById('score_skill').value) || 0,
+            score_total: parseInt(document.getElementById('score_total').value) || 0,
+            eval_comment: document.getElementById('eval_comment').value
+        };
+
+        const res = await fetch(`/api/admin/score/${currentReviewId}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        const result = await res.json();
+        
+        if(result.status === 'success') {
+            alert('✅ 评分保存成功！');
+            closeReview();
+            loadAdminList(); // 刷新列表显示总分
         } else {
-            alert(data.message);
+            alert('保存失败');
         }
     }
 
