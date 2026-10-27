@@ -15,7 +15,6 @@ from passlib.context import CryptContext
 from dotenv import load_dotenv
 from openai import OpenAI
 
-# PDF 排版工具
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -23,7 +22,6 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-# 加载环境变量
 load_dotenv()
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 
@@ -38,7 +36,6 @@ app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# 自动下载中文字体
 FONT_PATH = "SimHei.ttf"
 if not os.path.exists(FONT_PATH):
     font_url = "https://raw.githubusercontent.com/StellarCN/scp_zh/master/fonts/SimHei.ttf"
@@ -119,7 +116,6 @@ def generate_pdf(app_data):
     text_style = ParagraphStyle('Text', fontName='SimHei', fontSize=11, leading=18)
 
     elements.append(Paragraph("柑橘音乐社团招新报名表", title_style))
-    
     img_barcode = Image(f"{barcode_path}.png", width=160, height=50)
     img_qr = Image(qr_path, width=60, height=60)
     header_data = [[img_qr, img_barcode]]
@@ -147,7 +143,6 @@ def generate_pdf(app_data):
     ]))
     elements.append(table)
     elements.append(Spacer(1, 30))
-    
     footer_style = ParagraphStyle('Footer', fontName='SimHei', fontSize=10, textColor=colors.gray, alignment=1)
     elements.append(Paragraph("此表由系统自动生成，面试时请凭此表或专属编号签到。", footer_style))
 
@@ -223,7 +218,6 @@ def get_my_app(username: str):
     finally:
         conn.close()
 
-# 🌟 修改：支持 sort 参数按分数排序
 @app.get("/api/admin/list")
 def admin_list(sort: str = "id"):
     order_by = "id DESC" if sort == "id" else "score_total DESC, id DESC"
@@ -236,8 +230,18 @@ def admin_list(sort: str = "id"):
     finally:
         conn.close()
 
-# ... 其余接口保持不变（download, detail, ai_summarize, ai_questions, checkin, score, export） ...
-# 为了节省篇幅，这里我跳过列出重复代码，直接在下面给出完整代码。
+# 🌟 新增：获取现场面试队列
+@app.get("/api/admin/queue")
+def get_queue():
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        # 获取等待中（已签到）和正在面试中的人
+        c.execute("SELECT barcode_id, name, department, status FROM applications WHERE status IN ('已签到', '面试中') ORDER BY id ASC")
+        rows = c.fetchall()
+        return {"status": "success", "data": rows}
+    finally:
+        conn.close()
 
 @app.get("/api/admin/download/{barcode_id}")
 def admin_download(barcode_id: str):
@@ -276,59 +280,43 @@ def admin_detail(barcode_id: str):
 
 @app.post("/api/admin/ai_summarize/{barcode_id}")
 def ai_summarize(barcode_id: str):
-    if not client:
-        return {"status": "error", "message": "尚未配置 DEEPSEEK_API_KEY！"}
+    if not client: return {"status": "error", "message": "尚未配置 DEEPSEEK_API_KEY！"}
     conn = get_db()
     try:
         c = conn.cursor()
         c.execute("SELECT ps_content FROM applications WHERE barcode_id = ?", (barcode_id,))
         res = c.fetchone()
-        if not res or not res[0]:
-            return {"status": "error", "message": "该用户没有填写个人陈述"}
-        ps_content = res[0]
-        
+        if not res or not res[0]: return {"status": "error", "message": "该用户没有填写个人陈述"}
         response = client.chat.completions.create(
             model="deepseek-chat",
-            messages=[
-                {"role": "system", "content": "你是一个社团招新负责人。请阅读以下申请人的个人陈述，提炼出该申请人的核心优势、技能或特点。要求：用一句话（不超过50字）总结，直接输出结果，不要任何客套话。"},
-                {"role": "user", "content": ps_content}
-            ],
-            temperature=0.3,
-            max_tokens=100
+            messages=[{"role": "system", "content": "用不超过50字总结核心优势。"}, {"role": "user", "content": res[0]}],
+            temperature=0.3, max_tokens=100
         )
         summary = response.choices[0].message.content.strip()
         c.execute("UPDATE applications SET ai_summary = ? WHERE barcode_id = ?", (summary, barcode_id))
         conn.commit()
         return {"status": "success", "summary": summary}
     except Exception as e:
-        return {"status": "error", "message": f"AI 接口请求失败: {str(e)}"}
+        return {"status": "error", "message": f"AI 接口失败: {str(e)}"}
     finally:
         conn.close()
 
 @app.post("/api/admin/ai_questions/{barcode_id}")
 def ai_questions(barcode_id: str):
-    if not client:
-        return {"status": "error", "message": "尚未配置 DEEPSEEK_API_KEY！"}
+    if not client: return {"status": "error", "message": "尚未配置 DEEPSEEK_API_KEY！"}
     conn = get_db()
     try:
         c = conn.cursor()
         c.execute("SELECT department, ps_content FROM applications WHERE barcode_id = ?", (barcode_id,))
         res = c.fetchone()
         if not res: return {"status": "error", "message": "找不到记录"}
-        
-        dept, ps_content = res
-        prompt = f"申请人意向部门：{dept}。个人陈述：{ps_content}。\n请根据上述信息，为该申请人量身定制 3 个面试提问。要求：问题要有针对性，能考察其真实能力和潜力，用 1. 2. 3. 列表输出，直接输出问题本身，不要任何开场白和客套话。"
-        
+        prompt = f"申请人意向部门：{res[0]}。陈述：{res[1]}。\n请生成3个针对性面试问题，用1. 2. 3.输出。"
         response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.6,
-            max_tokens=300
+            model="deepseek-chat", messages=[{"role": "user", "content": prompt}], temperature=0.6, max_tokens=300
         )
-        questions = response.choices[0].message.content.strip()
-        return {"status": "success", "questions": questions}
+        return {"status": "success", "questions": response.choices[0].message.content.strip()}
     except Exception as e:
-        return {"status": "error", "message": f"AI 生成失败: {str(e)}"}
+        return {"status": "error", "message": f"AI 失败: {str(e)}"}
     finally:
         conn.close()
 
@@ -364,17 +352,15 @@ def check_in(data: CheckInRequest):
         c.execute("SELECT name, department, status FROM applications WHERE barcode_id = ?", (barcode_id,))
         res = c.fetchone()
 
-        if not res:
-            return {"status": "error", "message": "❌ 找不到该编号，请确认是否报名！"}
+        if not res: return {"status": "error", "message": "❌ 找不到该编号！"}
         name, dept, current_status = res
-        if current_status == '未通过':
-            return {"status": "error", "message": f"❌ {name}（{dept}）预审未通过，无法签到！"}
+        if current_status == '未通过': return {"status": "error", "message": f"❌ {name} 预审未通过！"}
         if current_status in ['已签到', '面试中', '已录取', '未录取']:
-            return {"status": "error", "message": f"⚠️ {name} 当前状态为 {current_status}，请勿重复签到！"}
+            return {"status": "error", "message": f"⚠️ {name} 当前状态为 {current_status}！"}
         
         c.execute("UPDATE applications SET status = '已签到' WHERE barcode_id = ?", (barcode_id,))
         conn.commit()
-        return {"status": "success", "message": f"✅ {name}（{dept}）签到成功！", "name": name, "dept": dept}
+        return {"status": "success", "message": f"✅ {name}（{dept}）签到成功！"}
     finally:
         conn.close()
 

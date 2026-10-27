@@ -41,7 +41,6 @@
         th { background-color: #fafafa; color: #4b5563; font-weight: 500; }
         tr:hover { background-color: #fafafa; }
 
-        /* 🌟 申请人进度条 */
         .progress-container { margin-top: 40px; padding: 20px; background: #fff; border-radius: 8px; border: 1px solid var(--border); }
         .steps { display: flex; justify-content: space-between; position: relative; margin-bottom: 30px; }
         .steps::before { content: ''; position: absolute; top: 15px; left: 0; right: 0; height: 3px; background: #e5e7eb; z-index: 1; }
@@ -79,11 +78,21 @@
         .score-inputs input { border-color: #86efac; }
         .score-inputs input:focus { border-color: #22c55e; box-shadow: 0 0 0 2px rgba(34,197,94,0.2); }
         .eval-comment { width: 100%; padding: 10px; border: 1px solid #86efac; border-radius: 6px; outline: none; resize: vertical; min-height: 60px; }
+
+        /* 🌟 现场队列看板样式 */
+        .queue-board { display: flex; gap: 20px; margin-top: 20px; }
+        .queue-col { flex: 1; background: #f9fafb; padding: 20px; border-radius: 8px; border: 1px solid var(--border); min-height: 400px; }
+        .queue-col h3 { text-align: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dashed var(--border); color: #374151; font-size: 16px; }
+        .queue-card { background: #fff; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .queue-card-info { display: flex; flex-direction: column; gap: 4px; }
+        .queue-card-name { font-weight: bold; font-size: 16px; }
+        .queue-card-dept { font-size: 13px; color: #6b7280; }
+        .queue-empty { text-align: center; color: #9ca3af; margin-top: 50px; font-size: 14px; }
     </style>
 </head>
 <body>
 <div class="container">
-    <!-- 登录 -->
+    <!-- 登录/注册/申请人面板保持不变，为了节省篇幅折叠... -->
     <div class="card active" id="loginCard" style="max-width: 400px; margin: 0 auto;">
         <h1>柑橘音乐 招新系统</h1>
         <div class="form-group"><label>账号</label><input type="text" id="login_user"></div>
@@ -92,7 +101,6 @@
         <span class="toggle-link" onclick="switchCard('registerCard')">没有账号？点击注册</span>
     </div>
 
-    <!-- 注册 -->
     <div class="card" id="registerCard" style="max-width: 400px; margin: 0 auto;">
         <h1>创建账户</h1>
         <div class="form-group"><label>账号</label><input type="text" id="reg_user"></div>
@@ -101,7 +109,6 @@
         <span class="toggle-link" onclick="switchCard('loginCard')">已有账号？返回登录</span>
     </div>
 
-    <!-- 申请人面板 -->
     <div class="card" id="userCard">
         <div class="top-bar">
             <h2>申请人中心</h2>
@@ -118,15 +125,11 @@
             <button class="btn btn-full" onclick="submitForm()">提交并下载 PDF 报名表</button>
         </div>
         
-        <!-- 🌟 申请人进度追踪 -->
         <div id="statusSection" style="display: none;">
             <h3 style="color: #52c41a; margin-bottom: 10px; text-align: center;">✅ 报名表已提交</h3>
             <p style="text-align: center; color: #666; margin-bottom: 20px;">你的专属签到编号：<strong id="my_barcode" style="color: #1890ff; font-size: 20px;"></strong></p>
-            
             <div class="progress-container">
-                <div class="steps" id="stepsContainer">
-                    <!-- 动态生成 -->
-                </div>
+                <div class="steps" id="stepsContainer"></div>
                 <div id="statusMessage" style="text-align: center; font-size: 15px; font-weight: bold; padding: 10px; border-radius: 6px;"></div>
             </div>
         </div>
@@ -137,7 +140,9 @@
         <div class="top-bar">
             <div class="nav-tabs">
                 <span id="tab_list" class="active" onclick="switchAdminTab('list')">报名列表</span>
-                <span id="tab_checkin" onclick="switchAdminTab('checkin')">现场扫码签到</span>
+                <!-- 🌟 新增现场队列 Tab -->
+                <span id="tab_queue" onclick="switchAdminTab('queue')">现场叫号队列</span>
+                <span id="tab_checkin" onclick="switchAdminTab('checkin')">扫码签到</span>
             </div>
             <div class="actions">
                 <button class="btn btn-sm btn-outline" onclick="exportCSV()">导出 CSV</button>
@@ -157,6 +162,20 @@
             </table>
         </div>
 
+        <!-- 🌟 现场队列看板 -->
+        <div id="adminQueueView" style="display: none;">
+            <div class="queue-board">
+                <div class="queue-col">
+                    <h3>候场区 (已签到)</h3>
+                    <div id="waitingQueue"></div>
+                </div>
+                <div class="queue-col">
+                    <h3>面试中</h3>
+                    <div id="interviewingQueue"></div>
+                </div>
+            </div>
+        </div>
+
         <div id="adminCheckInView" style="display: none;">
             <div class="scan-container">
                 <h2 style="margin-bottom: 20px; color: #333;">请使用扫码枪扫描 PDF 上的编号</h2>
@@ -172,7 +191,7 @@
     </div>
 </div>
 
-<!-- 审核 & 打分弹窗 -->
+<!-- 详情/打分/PDF弹窗代码保持不变... -->
 <div id="reviewModal" class="modal-overlay">
     <div class="modal-content">
         <div class="modal-header">
@@ -208,7 +227,6 @@
                 <button class="btn" style="background: #52c41a; width: 100%; margin-top: 15px;" onclick="submitScore()">保存评分</button>
             </div>
 
-            <!-- 🌟 最终决定 -->
             <div style="margin-top: 30px; border-top: 1px solid var(--border); padding-top: 20px; display: flex; justify-content: space-between; align-items: center;">
                 <div style="font-size: 14px; color: #666;">最终决定：</div>
                 <div style="display: flex; gap: 10px;">
@@ -222,7 +240,6 @@
     </div>
 </div>
 
-<!-- PDF 预览弹窗 -->
 <div id="pdfModal" class="modal-overlay">
     <div class="modal-content" style="width: 85%; height: 85%; max-width: none;">
         <div class="modal-header">
@@ -237,6 +254,7 @@
     let currentUser = "";
     let currentRole = "";
     let currentReviewId = "";
+    let lastScannedCode = "";
 
     function switchCard(id) {
         document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
@@ -257,7 +275,6 @@
             if(currentRole === 'admin') {
                 switchCard('adminCard');
                 switchAdminTab('list');
-                loadAdminList();
             } else {
                 switchCard('userCard');
                 checkMyStatus();
@@ -277,7 +294,7 @@
         if(data.status === 'success') switchCard('loginCard');
     }
 
-    // 🌟 申请人动态进度条渲染
+    // === 申请人进度条 ===
     async function checkMyStatus() {
         const res = await fetch(`/api/my_application?username=${currentUser}`);
         const data = await res.json();
@@ -301,7 +318,7 @@
             let currentStepIndex = 0;
             
             if (status === '未通过' || status === '未录取') {
-                currentStepIndex = -1; // 中断
+                currentStepIndex = -1; 
             } else {
                 steps.forEach((s, i) => {
                     if (s.match.includes(status)) currentStepIndex = i;
@@ -329,25 +346,13 @@
             
             stepsContainer.innerHTML = html;
             
-            if (status === '待审核') {
-                statusMessage.innerText = '系统正在初筛中，请耐心等待...';
-                statusMessage.style.color = '#fa8c16'; statusMessage.style.background = '#fff7e6';
-            } else if (status === '初筛通过') {
-                statusMessage.innerText = '恭喜！初筛已通过，请留意面试通知。';
-                statusMessage.style.color = '#52c41a'; statusMessage.style.background = '#f6ffed';
-            } else if (status === '未通过') {
-                statusMessage.innerText = '很遗憾，本次初筛未能通过。';
-                statusMessage.style.color = '#ff4d4f'; statusMessage.style.background = '#fff1f0';
-            } else if (status === '已签到') {
-                statusMessage.innerText = '已签到，请在候场区等待面试。';
-                statusMessage.style.color = '#1890ff'; statusMessage.style.background = '#e6f7ff';
-            } else if (status === '已录取') {
-                statusMessage.innerText = '🎉 恭喜你！你已被柑橘音乐录取！';
-                statusMessage.style.color = '#52c41a'; statusMessage.style.background = '#f6ffed';
-            } else if (status === '未录取') {
-                statusMessage.innerText = '很遗憾，本次面试未能通过，祝你前程似锦。';
-                statusMessage.style.color = '#ff4d4f'; statusMessage.style.background = '#fff1f0';
-            }
+            if (status === '待审核') { statusMessage.innerText = '系统正在初筛中，请耐心等待...'; statusMessage.style.color = '#fa8c16'; }
+            else if (status === '初筛通过') { statusMessage.innerText = '恭喜！初筛已通过。'; statusMessage.style.color = '#52c41a'; }
+            else if (status === '未通过') { statusMessage.innerText = '很遗憾，初筛未能通过。'; statusMessage.style.color = '#ff4d4f'; }
+            else if (status === '已签到') { statusMessage.innerText = '已签到，请在候场区等待面试。'; statusMessage.style.color = '#1890ff'; }
+            else if (status === '面试中') { statusMessage.innerText = '正在面试中，加油！'; statusMessage.style.color = '#fa8c16'; }
+            else if (status === '已录取') { statusMessage.innerText = '🎉 恭喜你！你已被柑橘音乐录取！'; statusMessage.style.color = '#52c41a'; }
+            else if (status === '未录取') { statusMessage.innerText = '很遗憾，本次面试未能通过。'; statusMessage.style.color = '#ff4d4f'; }
             
         } else {
             document.getElementById('applySection').style.display = 'block';
@@ -386,17 +391,26 @@
         }
     }
 
+    // === 管理员逻辑 ===
     function switchAdminTab(tab) {
         document.getElementById('tab_list').classList.remove('active');
+        document.getElementById('tab_queue').classList.remove('active');
         document.getElementById('tab_checkin').classList.remove('active');
         
+        document.getElementById('adminListView').style.display = 'none';
+        document.getElementById('adminQueueView').style.display = 'none';
+        document.getElementById('adminCheckInView').style.display = 'none';
+
         if(tab === 'list') {
             document.getElementById('tab_list').classList.add('active');
             document.getElementById('adminListView').style.display = 'block';
-            document.getElementById('adminCheckInView').style.display = 'none';
+            loadAdminList();
+        } else if (tab === 'queue') {
+            document.getElementById('tab_queue').classList.add('active');
+            document.getElementById('adminQueueView').style.display = 'block';
+            loadQueue();
         } else {
             document.getElementById('tab_checkin').classList.add('active');
-            document.getElementById('adminListView').style.display = 'none';
             document.getElementById('adminCheckInView').style.display = 'block';
             setTimeout(() => document.getElementById('scanInput').focus(), 100);
         }
@@ -436,10 +450,57 @@
         });
     }
 
+    // 🌟 加载队列看板
+    async function loadQueue() {
+        const res = await fetch('/api/admin/queue');
+        const data = await res.json();
+        const waitingDiv = document.getElementById('waitingQueue');
+        const interviewingDiv = document.getElementById('interviewingQueue');
+        
+        waitingDiv.innerHTML = '';
+        interviewingDiv.innerHTML = '';
+
+        let waitCount = 0, interCount = 0;
+
+        data.data.forEach(row => {
+            // row: [barcode_id, name, department, status]
+            const cardHTML = `
+                <div class="queue-card">
+                    <div class="queue-card-info">
+                        <span class="queue-card-name">${row[1]}</span>
+                        <span class="queue-card-dept">${row[2]}</span>
+                    </div>
+                    ${row[3] === '已签到' 
+                        ? `<button class="btn btn-sm" onclick="callNext('${row[0]}')">呼叫</button>` 
+                        : `<button class="btn btn-sm btn-outline" onclick="openReview('${row[0]}')">打分</button>`}
+                </div>
+            `;
+
+            if (row[3] === '已签到') {
+                waitingDiv.innerHTML += cardHTML;
+                waitCount++;
+            } else if (row[3] === '面试中') {
+                interviewingDiv.innerHTML += cardHTML;
+                interCount++;
+            }
+        });
+
+        if (waitCount === 0) waitingDiv.innerHTML = '<div class="queue-empty">暂无候场人员</div>';
+        if (interCount === 0) interviewingDiv.innerHTML = '<div class="queue-empty">暂无面试中人员</div>';
+    }
+
+    // 呼叫下一位
+    async function callNext(barcode_id) {
+        const res = await fetch(`/api/admin/update_status/${barcode_id}`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({status: '面试中'})
+        });
+        if(res.ok) loadQueue();
+    }
+
     const scanInput = document.getElementById('scanInput');
     const scanResult = document.getElementById('scanResult');
     const scanActionBox = document.getElementById('scanActionBox');
-    let lastScannedCode = ""; 
     
     scanInput.addEventListener('keypress', async function(e) {
         if (e.key === 'Enter') {
@@ -452,8 +513,7 @@
             scanActionBox.style.display = 'none'; 
             
             const res = await fetch('/api/admin/checkin', {
-                method: 'POST', 
-                headers: {'Content-Type': 'application/json'},
+                method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({barcode_id: code})
             });
             const data = await res.json();
@@ -488,14 +548,10 @@
                 aiBox.innerText = data.data.ai_summary;
                 aiBox.style.display = 'block';
             } else {
-                aiBox.innerText = "";
                 aiBox.style.display = 'none';
             }
 
-            const qBox = document.getElementById('rv_ai_questions');
-            qBox.innerText = "";
-            qBox.style.display = 'none';
-
+            document.getElementById('rv_ai_questions').style.display = 'none';
             document.getElementById('score_exp').value = data.data.score_exp || '';
             document.getElementById('score_skill').value = data.data.score_skill || '';
             document.getElementById('score_total').value = data.data.score_total || '';
@@ -509,35 +565,25 @@
 
     async function generateAISummary() {
         const btn = document.getElementById('btnAi');
-        const aiBox = document.getElementById('rv_ai_summary');
-        btn.innerText = "生成中...";
-        btn.disabled = true;
-
+        btn.innerText = "生成中..."; btn.disabled = true;
         const res = await fetch(`/api/admin/ai_summarize/${currentReviewId}`, { method: 'POST' });
         const data = await res.json();
-        
-        btn.innerText = "✨ 重新生成";
-        btn.disabled = false;
+        btn.innerText = "✨ 重新生成"; btn.disabled = false;
         if(data.status === 'success') {
-            aiBox.innerText = data.summary;
-            aiBox.style.display = 'block';
+            document.getElementById('rv_ai_summary').innerText = data.summary;
+            document.getElementById('rv_ai_summary').style.display = 'block';
         } else alert(data.message);
     }
 
     async function generateAIQuestions() {
         const btn = document.getElementById('btnAiQ');
-        const qBox = document.getElementById('rv_ai_questions');
-        btn.innerText = "出题中...";
-        btn.disabled = true;
-
+        btn.innerText = "出题中..."; btn.disabled = true;
         const res = await fetch(`/api/admin/ai_questions/${currentReviewId}`, { method: 'POST' });
         const data = await res.json();
-        
-        btn.innerText = "✨ 重新出题";
-        btn.disabled = false;
+        btn.innerText = "✨ 重新出题"; btn.disabled = false;
         if(data.status === 'success') {
-            qBox.innerText = data.questions;
-            qBox.style.display = 'block';
+            document.getElementById('rv_ai_questions').innerText = data.questions;
+            document.getElementById('rv_ai_questions').style.display = 'block';
         } else alert(data.message);
     }
 
@@ -548,34 +594,27 @@
             score_total: parseInt(document.getElementById('score_total').value) || 0,
             eval_comment: document.getElementById('eval_comment').value
         };
-
         const res = await fetch(`/api/admin/score/${currentReviewId}`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
         });
         const result = await res.json();
-        
         if(result.status === 'success') {
             alert('✅ 评分保存成功！');
-            closeReview();
-            loadAdminList();
-        } else {
-            alert('保存失败');
-        }
+            closeReview(); loadAdminList();
+            if(document.getElementById('adminQueueView').style.display === 'block') loadQueue();
+        } else alert('保存失败');
     }
 
     async function updateStatus(status) {
         const res = await fetch(`/api/admin/update_status/${currentReviewId}`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({status: status})
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({status: status})
         });
         const data = await res.json();
         if(data.status === 'success') {
             alert(`状态已更新为：${status}`);
-            closeReview();
+            closeReview(); 
             loadAdminList();
+            if(document.getElementById('adminQueueView').style.display === 'block') loadQueue();
         }
     }
 
