@@ -40,10 +40,20 @@
         th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); }
         th { background-color: #fafafa; color: #4b5563; font-weight: 500; }
         tr:hover { background-color: #fafafa; }
-        
-        .status-box { text-align: center; padding: 40px 20px; background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 6px; }
-        .status-box h3 { color: #52c41a; margin-bottom: 15px; font-weight: 600; }
-        .status-box strong { font-size: 24px; color: #52c41a; letter-spacing: 1px; }
+
+        /* 🌟 申请人进度条 */
+        .progress-container { margin-top: 40px; padding: 20px; background: #fff; border-radius: 8px; border: 1px solid var(--border); }
+        .steps { display: flex; justify-content: space-between; position: relative; margin-bottom: 30px; }
+        .steps::before { content: ''; position: absolute; top: 15px; left: 0; right: 0; height: 3px; background: #e5e7eb; z-index: 1; }
+        .step { position: relative; z-index: 2; text-align: center; flex: 1; }
+        .step-circle { width: 32px; height: 32px; background: #e5e7eb; border-radius: 50%; margin: 0 auto 10px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: bold; font-size: 14px; }
+        .step-text { font-size: 13px; color: #6b7280; font-weight: 500; }
+        .step.active .step-circle { background: var(--primary); box-shadow: 0 0 0 3px rgba(24,144,255,0.2); }
+        .step.active .step-text { color: var(--primary); }
+        .step.success .step-circle { background: #52c41a; }
+        .step.success .step-text { color: #52c41a; }
+        .step.fail .step-circle { background: #ff4d4f; }
+        .step.fail .step-text { color: #ff4d4f; }
 
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
         .modal-content { background: white; width: 80%; max-width: 750px; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; max-height: 90vh; }
@@ -62,7 +72,6 @@
         .action-btn-group { display: none; margin-top: 20px; justify-content: center; gap: 15px; }
         .action-btn-group .btn { font-size: 16px; padding: 12px 24px; }
 
-        /* 🌟 打分区域样式 */
         .score-section { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 20px; border-radius: 8px; margin-top: 25px; }
         .score-inputs { display: flex; gap: 15px; margin-bottom: 15px; }
         .score-inputs div { flex: 1; }
@@ -108,11 +117,18 @@
             <div class="form-group"><label>个人陈述</label><textarea id="ps_content" rows="5"></textarea></div>
             <button class="btn btn-full" onclick="submitForm()">提交并下载 PDF 报名表</button>
         </div>
-        <div id="statusSection" class="status-box" style="display: none;">
-            <h3>✅ 报名表已提交</h3>
-            <p style="margin-bottom: 10px; color: #666;">你的专属签到编号为：</p>
-            <strong id="my_barcode"></strong>
-            <p style="margin-top: 15px; color: #666; font-size: 14px;">当前状态：<span id="my_status" style="font-weight: bold; color: #fa8c16;"></span></p>
+        
+        <!-- 🌟 申请人进度追踪 -->
+        <div id="statusSection" style="display: none;">
+            <h3 style="color: #52c41a; margin-bottom: 10px; text-align: center;">✅ 报名表已提交</h3>
+            <p style="text-align: center; color: #666; margin-bottom: 20px;">你的专属签到编号：<strong id="my_barcode" style="color: #1890ff; font-size: 20px;"></strong></p>
+            
+            <div class="progress-container">
+                <div class="steps" id="stepsContainer">
+                    <!-- 动态生成 -->
+                </div>
+                <div id="statusMessage" style="text-align: center; font-size: 15px; font-weight: bold; padding: 10px; border-radius: 6px;"></div>
+            </div>
         </div>
     </div>
 
@@ -130,6 +146,11 @@
         </div>
         
         <div id="adminListView">
+            <div style="margin-bottom: 10px; display: flex; justify-content: flex-end;">
+                <label style="display: flex; align-items: center; font-size: 14px; cursor: pointer;">
+                    <input type="checkbox" id="sortScoreCheckbox" onchange="loadAdminList()" style="width: auto; margin-right: 8px;"> 按总分降序排列
+                </label>
+            </div>
             <table>
                 <thead><tr><th>编号</th><th>姓名</th><th>部门</th><th>状态</th><th>总分</th><th>操作</th></tr></thead>
                 <tbody id="adminTableBody"></tbody>
@@ -175,31 +196,27 @@
             </div>
             <div class="ai-box" id="rv_ai_questions" style="display: none; background: #e0f2fe; border-color: #bae6fd; color: #0369a1;"></div>
 
-            <!-- 🌟 打分区域 -->
             <div class="score-section">
                 <h3 style="font-size: 15px; color: #166534; margin-bottom: 15px;">📝 面试官打分</h3>
                 <div class="score-inputs">
-                    <div>
-                        <label>沟通表达 (1-10)</label>
-                        <input type="number" id="score_exp" min="1" max="10" placeholder="0">
-                    </div>
-                    <div>
-                        <label>专业技能 (1-10)</label>
-                        <input type="number" id="score_skill" min="1" max="10" placeholder="0">
-                    </div>
-                    <div>
-                        <label>综合评价 (1-100)</label>
-                        <input type="number" id="score_total" min="1" max="100" placeholder="0">
-                    </div>
+                    <div><label>沟通表达</label><input type="number" id="score_exp" min="1" max="10"></div>
+                    <div><label>专业技能</label><input type="number" id="score_skill" min="1" max="10"></div>
+                    <div><label>综合评价 (1-100)</label><input type="number" id="score_total" min="1" max="100"></div>
                 </div>
                 <label>评语备注</label>
                 <textarea id="eval_comment" class="eval-comment" placeholder="记录候选人亮点或淘汰原因..."></textarea>
                 <button class="btn" style="background: #52c41a; width: 100%; margin-top: 15px;" onclick="submitScore()">保存评分</button>
             </div>
 
-            <div style="margin-top: 30px; border-top: 1px solid var(--border); padding-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
-                <button class="btn btn-outline" onclick="updateStatus('未通过')">❌ 预审未通过</button>
-                <button class="btn" onclick="updateStatus('初筛通过')">✅ 预审通过</button>
+            <!-- 🌟 最终决定 -->
+            <div style="margin-top: 30px; border-top: 1px solid var(--border); padding-top: 20px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-size: 14px; color: #666;">最终决定：</div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-outline" onclick="updateStatus('未通过')">❌ 预审淘汰</button>
+                    <button class="btn btn-outline" onclick="updateStatus('初筛通过')">⏳ 初筛通过</button>
+                    <button class="btn" style="background: #ff4d4f;" onclick="updateStatus('未录取')">❌ 面试淘汰</button>
+                    <button class="btn" style="background: #52c41a;" onclick="updateStatus('已录取')">🎉 确认录取</button>
+                </div>
             </div>
         </div>
     </div>
@@ -260,6 +277,7 @@
         if(data.status === 'success') switchCard('loginCard');
     }
 
+    // 🌟 申请人动态进度条渲染
     async function checkMyStatus() {
         const res = await fetch(`/api/my_application?username=${currentUser}`);
         const data = await res.json();
@@ -267,7 +285,70 @@
             document.getElementById('applySection').style.display = 'none';
             document.getElementById('statusSection').style.display = 'block';
             document.getElementById('my_barcode').innerText = data.data.barcode_id;
-            document.getElementById('my_status').innerText = data.data.status;
+            
+            const status = data.data.status;
+            const stepsContainer = document.getElementById('stepsContainer');
+            const statusMessage = document.getElementById('statusMessage');
+            
+            const steps = [
+                { key: '提交报名', match: ['待审核', '初筛通过', '未通过', '已签到', '面试中', '已录取', '未录取'] },
+                { key: '初筛审核', match: ['初筛通过', '未通过', '已签到', '面试中', '已录取', '未录取'] },
+                { key: '现场签到', match: ['已签到', '面试中', '已录取', '未录取'] },
+                { key: '面试评估', match: ['已录取', '未录取'] }
+            ];
+
+            let html = '';
+            let currentStepIndex = 0;
+            
+            if (status === '未通过' || status === '未录取') {
+                currentStepIndex = -1; // 中断
+            } else {
+                steps.forEach((s, i) => {
+                    if (s.match.includes(status)) currentStepIndex = i;
+                });
+            }
+
+            steps.forEach((step, index) => {
+                let className = '';
+                if (currentStepIndex === -1) {
+                    if (index <= 1 && status === '未通过') className = 'fail';
+                    else if (index <= 3 && status === '未录取') className = 'fail';
+                    else if (index < 2) className = 'success';
+                } else {
+                    if (index < currentStepIndex) className = 'success';
+                    if (index === currentStepIndex) className = 'active';
+                }
+                
+                html += `
+                    <div class="step ${className}">
+                        <div class="step-circle">${index + 1}</div>
+                        <div class="step-text">${step.key}</div>
+                    </div>
+                `;
+            });
+            
+            stepsContainer.innerHTML = html;
+            
+            if (status === '待审核') {
+                statusMessage.innerText = '系统正在初筛中，请耐心等待...';
+                statusMessage.style.color = '#fa8c16'; statusMessage.style.background = '#fff7e6';
+            } else if (status === '初筛通过') {
+                statusMessage.innerText = '恭喜！初筛已通过，请留意面试通知。';
+                statusMessage.style.color = '#52c41a'; statusMessage.style.background = '#f6ffed';
+            } else if (status === '未通过') {
+                statusMessage.innerText = '很遗憾，本次初筛未能通过。';
+                statusMessage.style.color = '#ff4d4f'; statusMessage.style.background = '#fff1f0';
+            } else if (status === '已签到') {
+                statusMessage.innerText = '已签到，请在候场区等待面试。';
+                statusMessage.style.color = '#1890ff'; statusMessage.style.background = '#e6f7ff';
+            } else if (status === '已录取') {
+                statusMessage.innerText = '🎉 恭喜你！你已被柑橘音乐录取！';
+                statusMessage.style.color = '#52c41a'; statusMessage.style.background = '#f6ffed';
+            } else if (status === '未录取') {
+                statusMessage.innerText = '很遗憾，本次面试未能通过，祝你前程似锦。';
+                statusMessage.style.color = '#ff4d4f'; statusMessage.style.background = '#fff1f0';
+            }
+            
         } else {
             document.getElementById('applySection').style.display = 'block';
             document.getElementById('statusSection').style.display = 'none';
@@ -322,7 +403,10 @@
     }
 
     async function loadAdminList() {
-        const res = await fetch('/api/admin/list');
+        const sortByScore = document.getElementById('sortScoreCheckbox').checked;
+        const sortParam = sortByScore ? 'score' : 'id';
+        
+        const res = await fetch(`/api/admin/list?sort=${sortParam}`);
         const data = await res.json();
         const tbody = document.getElementById('adminTableBody');
         tbody.innerHTML = "";
@@ -330,10 +414,10 @@
         data.data.forEach(row => {
             let statusColor = '#fa8c16'; 
             if (row[5] === '初筛通过') statusColor = '#52c41a';
-            if (row[5] === '未通过') statusColor = '#ff4d4f';
-            if (row[5] === '已签到') statusColor = '#1890ff';
+            if (row[5] === '未通过' || row[5] === '未录取') statusColor = '#ff4d4f';
+            if (row[5] === '已签到' || row[5] === '面试中') statusColor = '#1890ff';
+            if (row[5] === '已录取') statusColor = '#52c41a';
 
-            // row 现在包含总分字段 row[6]
             let scoreDisplay = row[6] > 0 ? `<strong style="color: #d97706;">${row[6]}分</strong>` : '<span style="color:#ccc;">未打分</span>';
 
             tbody.innerHTML += `
@@ -412,7 +496,6 @@
             qBox.innerText = "";
             qBox.style.display = 'none';
 
-            // 🌟 回显打分数据
             document.getElementById('score_exp').value = data.data.score_exp || '';
             document.getElementById('score_skill').value = data.data.score_skill || '';
             document.getElementById('score_total').value = data.data.score_total || '';
@@ -458,7 +541,6 @@
         } else alert(data.message);
     }
 
-    // 🌟 提交打分
     async function submitScore() {
         const data = {
             score_exp: parseInt(document.getElementById('score_exp').value) || 0,
@@ -477,7 +559,7 @@
         if(result.status === 'success') {
             alert('✅ 评分保存成功！');
             closeReview();
-            loadAdminList(); // 刷新列表显示总分
+            loadAdminList();
         } else {
             alert('保存失败');
         }
@@ -491,7 +573,7 @@
         });
         const data = await res.json();
         if(data.status === 'success') {
-            alert(`已标记为：${status}`);
+            alert(`状态已更新为：${status}`);
             closeReview();
             loadAdminList();
         }

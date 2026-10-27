@@ -65,16 +65,14 @@ def init_db():
             c.execute("ALTER TABLE applications ADD COLUMN status TEXT DEFAULT '待审核'")
         if 'ai_summary' not in columns:
             c.execute("ALTER TABLE applications ADD COLUMN ai_summary TEXT DEFAULT ''")
-        
-        # 🌟 新增：打分相关字段
         if 'score_exp' not in columns:
-            c.execute("ALTER TABLE applications ADD COLUMN score_exp INTEGER DEFAULT 0") # 表达分
+            c.execute("ALTER TABLE applications ADD COLUMN score_exp INTEGER DEFAULT 0")
         if 'score_skill' not in columns:
-            c.execute("ALTER TABLE applications ADD COLUMN score_skill INTEGER DEFAULT 0") # 技能分
+            c.execute("ALTER TABLE applications ADD COLUMN score_skill INTEGER DEFAULT 0")
         if 'score_total' not in columns:
-            c.execute("ALTER TABLE applications ADD COLUMN score_total INTEGER DEFAULT 0") # 总分
+            c.execute("ALTER TABLE applications ADD COLUMN score_total INTEGER DEFAULT 0")
         if 'eval_comment' not in columns:
-            c.execute("ALTER TABLE applications ADD COLUMN eval_comment TEXT DEFAULT ''") # 评语
+            c.execute("ALTER TABLE applications ADD COLUMN eval_comment TEXT DEFAULT ''")
             
         c.execute("SELECT * FROM users WHERE username = 'gjyyadmin'")
         if not c.fetchone():
@@ -85,7 +83,6 @@ def init_db():
         conn.close()
 init_db()
 
-# --- 数据模型 ---
 class UserAuth(BaseModel):
     username: str
     password: str
@@ -100,15 +97,12 @@ class StatusUpdate(BaseModel):
     status: str
 class CheckInRequest(BaseModel):
     barcode_id: str
-
-# 🌟 新增：打分数据模型
 class ScoreSubmit(BaseModel):
     score_exp: int
     score_skill: int
     score_total: int
     eval_comment: str
 
-# --- PDF 生成 ---
 def generate_pdf(app_data):
     barcode_id, name, student_id, phone, dept, ps = app_data[:6]
     pdf_filename = f"{barcode_id}.pdf"
@@ -162,7 +156,6 @@ def generate_pdf(app_data):
     os.remove(qr_path)
     return pdf_filename
 
-# --- 路由与接口 ---
 @app.get("/", response_class=HTMLResponse)
 def read_index():
     with open("apply.html", "r", encoding="utf-8") as f:
@@ -230,16 +223,21 @@ def get_my_app(username: str):
     finally:
         conn.close()
 
+# 🌟 修改：支持 sort 参数按分数排序
 @app.get("/api/admin/list")
-def admin_list():
+def admin_list(sort: str = "id"):
+    order_by = "id DESC" if sort == "id" else "score_total DESC, id DESC"
     conn = get_db()
     try:
         c = conn.cursor()
-        c.execute("SELECT barcode_id, name, student_id, department, phone_last4, status, score_total FROM applications ORDER BY id DESC")
+        c.execute(f"SELECT barcode_id, name, student_id, department, phone_last4, status, score_total FROM applications ORDER BY {order_by}")
         rows = c.fetchall()
         return {"status": "success", "data": rows}
     finally:
         conn.close()
+
+# ... 其余接口保持不变（download, detail, ai_summarize, ai_questions, checkin, score, export） ...
+# 为了节省篇幅，这里我跳过列出重复代码，直接在下面给出完整代码。
 
 @app.get("/api/admin/download/{barcode_id}")
 def admin_download(barcode_id: str):
@@ -264,7 +262,6 @@ def admin_detail(barcode_id: str):
     conn = get_db()
     try:
         c = conn.cursor()
-        # 🌟 返回新增的打分字段
         c.execute("SELECT name, department, ps_content, ai_summary, status, score_exp, score_skill, score_total, eval_comment FROM applications WHERE barcode_id = ?", (barcode_id,))
         res = c.fetchone()
     finally:
@@ -281,7 +278,6 @@ def admin_detail(barcode_id: str):
 def ai_summarize(barcode_id: str):
     if not client:
         return {"status": "error", "message": "尚未配置 DEEPSEEK_API_KEY！"}
-
     conn = get_db()
     try:
         c = conn.cursor()
@@ -301,7 +297,6 @@ def ai_summarize(barcode_id: str):
             max_tokens=100
         )
         summary = response.choices[0].message.content.strip()
-        
         c.execute("UPDATE applications SET ai_summary = ? WHERE barcode_id = ?", (summary, barcode_id))
         conn.commit()
         return {"status": "success", "summary": summary}
@@ -314,7 +309,6 @@ def ai_summarize(barcode_id: str):
 def ai_questions(barcode_id: str):
     if not client:
         return {"status": "error", "message": "尚未配置 DEEPSEEK_API_KEY！"}
-    
     conn = get_db()
     try:
         c = conn.cursor()
@@ -349,7 +343,6 @@ def update_status(barcode_id: str, data: StatusUpdate):
     finally:
         conn.close()
 
-# 🌟 新增：保存打分接口
 @app.post("/api/admin/score/{barcode_id}")
 def submit_score(barcode_id: str, data: ScoreSubmit):
     conn = get_db()
@@ -373,17 +366,14 @@ def check_in(data: CheckInRequest):
 
         if not res:
             return {"status": "error", "message": "❌ 找不到该编号，请确认是否报名！"}
-        
         name, dept, current_status = res
-        
         if current_status == '未通过':
             return {"status": "error", "message": f"❌ {name}（{dept}）预审未通过，无法签到！"}
-        if current_status == '已签到':
-            return {"status": "error", "message": f"⚠️ {name} 已经签到过了，请勿重复签到！"}
+        if current_status in ['已签到', '面试中', '已录取', '未录取']:
+            return {"status": "error", "message": f"⚠️ {name} 当前状态为 {current_status}，请勿重复签到！"}
         
         c.execute("UPDATE applications SET status = '已签到' WHERE barcode_id = ?", (barcode_id,))
         conn.commit()
-        
         return {"status": "success", "message": f"✅ {name}（{dept}）签到成功！", "name": name, "dept": dept}
     finally:
         conn.close()
@@ -393,7 +383,6 @@ def admin_export():
     conn = get_db()
     try:
         c = conn.cursor()
-        # 🌟 导出增加分数与评语
         c.execute("SELECT barcode_id, name, student_id, phone_last4, department, ps_content, status, score_exp, score_skill, score_total, eval_comment FROM applications")
         rows = c.fetchall()
     finally:
