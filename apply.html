@@ -55,12 +55,13 @@
         .step.fail .step-text { color: #ff4d4f; }
 
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
-        .modal-content { background: white; width: 80%; max-width: 750px; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; max-height: 90vh; }
-        .modal-header { padding: 15px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-        .modal-body { padding: 20px; overflow-y: auto; }
+        /* 🌟 优化：弹窗变宽 */
+        .modal-content { background: white; width: 95%; max-width: 1100px; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; max-height: 90vh; }
+        .modal-header { padding: 15px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        .modal-body { padding: 20px; overflow-y: hidden; display: flex; flex-direction: column; }
         
         .ai-box { background: #f5f3ff; border: 1px solid #ddd6fe; padding: 15px; border-radius: 6px; margin: 15px 0; font-size: 14px; line-height: 1.5; color: #4c1d95;}
-        .ps-content { background: #f9fafb; padding: 15px; border-radius: 6px; border: 1px solid var(--border); font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+        .ps-content { background: #f9fafb; padding: 15px; border-radius: 6px; border: 1px solid var(--border); font-size: 14px; line-height: 1.6; white-space: pre-wrap; max-height: 250px; overflow-y: auto; }
 
         .scan-container { text-align: center; padding: 50px 20px; }
         .scan-input { font-size: 28px !important; text-align: center; letter-spacing: 2px; font-weight: bold; padding: 20px !important; border: 3px solid var(--primary) !important; width: 80% !important; margin: 0 auto; }
@@ -71,24 +72,26 @@
         .action-btn-group { display: none; margin-top: 20px; justify-content: center; gap: 15px; }
         .action-btn-group .btn { font-size: 16px; padding: 12px 24px; }
 
-        .score-section { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 20px; border-radius: 8px; margin-top: 25px; }
-        .score-inputs { display: flex; gap: 15px; margin-bottom: 15px; }
-        .score-inputs div { flex: 1; }
-        .score-inputs label { color: #166534; }
-        .score-inputs input { border-color: #86efac; }
+        /* 🌟 分屏布局样式 */
+        .split-layout { display: flex; gap: 20px; height: 100%; overflow: hidden; }
+        .left-panel { flex: 1.2; overflow-y: auto; padding-right: 15px; border-right: 1px solid var(--border); }
+        .right-panel { flex: 1; display: flex; flex-direction: column; background: #fafafa; padding: 20px; border-radius: 8px; border: 1px solid var(--border); }
+        
+        /* 右侧打分区域 */
+        .score-section { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .score-inputs { display: flex; flex-direction: column; gap: 15px; margin-bottom: 15px; }
+        .score-inputs label { color: #166534; margin-bottom: 5px; }
+        .score-inputs input { border-color: #86efac; font-size: 16px; font-weight: bold; }
         .score-inputs input:focus { border-color: #22c55e; box-shadow: 0 0 0 2px rgba(34,197,94,0.2); }
-        .eval-comment { width: 100%; padding: 10px; border: 1px solid #86efac; border-radius: 6px; outline: none; resize: vertical; min-height: 60px; }
+        .eval-comment { width: 100%; padding: 10px; border: 1px solid #86efac; border-radius: 6px; outline: none; resize: vertical; min-height: 100px; font-size: 14px; }
 
-        /* 🌟 现场简单队列样式 */
-        .queue-list { margin-top: 20px; }
-        .queue-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #fff; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; transition: 0.2s; }
-        .queue-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-color: var(--primary); }
-        .queue-item:first-child { border-left: 4px solid var(--primary); }
-        .queue-info { display: flex; align-items: center; gap: 20px; }
-        .queue-index { background: #e6f7ff; color: var(--primary); font-weight: bold; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-        .queue-name { font-size: 16px; font-weight: bold; color: #333; }
-        .queue-dept { font-size: 14px; color: #888; }
-        .queue-empty { text-align: center; color: #9ca3af; margin-top: 40px; font-size: 15px; }
+        /* 移动端适配分屏 */
+        @media (max-width: 768px) {
+            .modal-content { width: 100%; height: 100%; max-height: 100vh; border-radius: 0; }
+            .split-layout { flex-direction: column; overflow-y: auto; }
+            .left-panel { border-right: none; border-bottom: 1px solid var(--border); padding-right: 0; padding-bottom: 20px; overflow-y: visible; flex: none; }
+            .right-panel { overflow-y: visible; flex: none; }
+        }
     </style>
 </head>
 <body>
@@ -140,7 +143,6 @@
         <div class="top-bar">
             <div class="nav-tabs">
                 <span id="tab_list" class="active" onclick="switchAdminTab('list')">报名列表</span>
-                <!-- 🌟 改成极简候场 -->
                 <span id="tab_queue" onclick="switchAdminTab('queue')">现场候场名单</span>
                 <span id="tab_checkin" onclick="switchAdminTab('checkin')">扫码签到</span>
             </div>
@@ -162,12 +164,9 @@
             </table>
         </div>
 
-        <!-- 🌟 极简候场名单 -->
         <div id="adminQueueView" style="display: none;">
             <h3 style="margin-bottom: 15px; color: #333;">已签到未面试人员 (按签到顺序)</h3>
-            <div class="queue-list" id="queueList">
-                <!-- 渲染列表 -->
-            </div>
+            <div class="queue-list" id="queueList"></div>
         </div>
 
         <div id="adminCheckInView" style="display: none;">
@@ -185,55 +184,64 @@
     </div>
 </div>
 
-<!-- 详情/打分弹窗 -->
+<!-- 🌟 分屏详情/打分弹窗 -->
 <div id="reviewModal" class="modal-overlay">
     <div class="modal-content">
         <div class="modal-header">
-            <h3 style="font-size: 16px;">详情与面试打分 - <span id="rv_name"></span></h3>
+            <h3 style="font-size: 18px;">🎤 面试工作台 - <span id="rv_name" style="color: var(--primary);"></span></h3>
             <button class="btn btn-sm btn-outline" onclick="closeReview()">关闭</button>
         </div>
-        <div class="modal-body">
-            <p><strong>意向部门：</strong> <span id="rv_dept"></span></p>
-            <p style="margin-top: 15px;"><strong>个人陈述原文：</strong></p>
-            <div class="ps-content" id="rv_ps"></div>
+        
+        <div class="modal-body" style="padding: 0;">
+            <div class="split-layout">
+                <!-- 左侧：候选人信息 -->
+                <div class="left-panel" style="padding: 20px;">
+                    <p><strong>意向部门：</strong> <span id="rv_dept" style="color: var(--primary); font-weight: bold;"></span></p>
+                    
+                    <div style="margin-top: 20px; display: flex; align-items: center; justify-content: space-between;">
+                        <strong style="font-size: 15px;">AI 核心摘要：</strong>
+                        <button class="btn btn-sm btn-ai" onclick="generateAISummary()" id="btnAi">✨ 一键生成摘要</button>
+                    </div>
+                    <div class="ai-box" id="rv_ai_summary" style="display: none;"></div>
 
-            <div style="margin-top: 20px; display: flex; align-items: center; justify-content: space-between;">
-                <strong>AI 核心摘要：</strong>
-                <button class="btn btn-sm btn-ai" onclick="generateAISummary()" id="btnAi">✨ 一键生成摘要</button>
-            </div>
-            <div class="ai-box" id="rv_ai_summary" style="display: none;"></div>
+                    <p style="margin-top: 20px;"><strong>个人陈述原文：</strong></p>
+                    <div class="ps-content" id="rv_ps"></div>
 
-            <div style="margin-top: 20px; display: flex; align-items: center; justify-content: space-between;">
-                <strong>AI 面试问题定制：</strong>
-                <button class="btn btn-sm btn-ai" onclick="generateAIQuestions()" id="btnAiQ">✨ 生成专属面试题</button>
-            </div>
-            <div class="ai-box" id="rv_ai_questions" style="display: none; background: #e0f2fe; border-color: #bae6fd; color: #0369a1;"></div>
-
-            <div class="score-section">
-                <h3 style="font-size: 15px; color: #166534; margin-bottom: 15px;">📝 面试官打分</h3>
-                <div class="score-inputs">
-                    <div><label>沟通表达</label><input type="number" id="score_exp" min="1" max="10"></div>
-                    <div><label>专业技能</label><input type="number" id="score_skill" min="1" max="10"></div>
-                    <div><label>综合评价 (1-100)</label><input type="number" id="score_total" min="1" max="100"></div>
+                    <div style="margin-top: 20px; display: flex; align-items: center; justify-content: space-between;">
+                        <strong style="font-size: 15px;">AI 定制面试题：</strong>
+                        <button class="btn btn-sm btn-ai" onclick="generateAIQuestions()" id="btnAiQ">✨ 生成问题</button>
+                    </div>
+                    <div class="ai-box" id="rv_ai_questions" style="display: none; background: #e0f2fe; border-color: #bae6fd; color: #0369a1;"></div>
                 </div>
-                <label>评语备注</label>
-                <textarea id="eval_comment" class="eval-comment" placeholder="记录候选人亮点或淘汰原因..."></textarea>
-                <button class="btn" style="background: #52c41a; width: 100%; margin-top: 15px;" onclick="submitScore()">保存评分</button>
-            </div>
 
-            <div style="margin-top: 30px; border-top: 1px solid var(--border); padding-top: 20px; display: flex; justify-content: space-between; align-items: center;">
-                <div style="font-size: 14px; color: #666;">最终决定：</div>
-                <div style="display: flex; gap: 10px;">
-                    <button class="btn btn-outline" onclick="updateStatus('未通过')">❌ 预审淘汰</button>
-                    <button class="btn btn-outline" onclick="updateStatus('初筛通过')">⏳ 初筛通过</button>
-                    <button class="btn" style="background: #ff4d4f;" onclick="updateStatus('未录取')">❌ 面试淘汰</button>
-                    <button class="btn" style="background: #52c41a;" onclick="updateStatus('已录取')">🎉 确认录取</button>
+                <!-- 右侧：打分与决策 -->
+                <div class="right-panel">
+                    <div class="score-section">
+                        <h3 style="font-size: 16px; color: #166534; margin-bottom: 15px;">📝 面试评分</h3>
+                        <div class="score-inputs">
+                            <div><label>沟通表达 (1-10)</label><input type="number" id="score_exp" min="1" max="10" placeholder="未打分"></div>
+                            <div><label>专业技能 (1-10)</label><input type="number" id="score_skill" min="1" max="10" placeholder="未打分"></div>
+                            <div><label>综合评价 (1-100)</label><input type="number" id="score_total" min="1" max="100" placeholder="未打分" style="background: #fff;"></div>
+                        </div>
+                        <label>评语备注</label>
+                        <textarea id="eval_comment" class="eval-comment" placeholder="记录候选人亮点或淘汰原因..."></textarea>
+                        <button class="btn" style="background: #52c41a; width: 100%; margin-top: 15px; padding: 12px; font-size: 16px;" onclick="submitScore()">💾 保存评分</button>
+                    </div>
+
+                    <div style="margin-top: auto; padding-top: 20px; display: flex; flex-direction: column; gap: 10px;">
+                        <button class="btn" style="background: #52c41a; font-size: 16px; padding: 15px;" onclick="updateStatus('已录取')">🎉 确认录取</button>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn btn-outline" style="flex: 1; border-color: #ff4d4f; color: #ff4d4f;" onclick="updateStatus('未录取')">❌ 面试淘汰</button>
+                            <button class="btn btn-outline" style="flex: 1;" onclick="updateStatus('初筛通过')">⏳ 放回初筛池</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- PDF 预览弹窗 -->
 <div id="pdfModal" class="modal-overlay">
     <div class="modal-content" style="width: 85%; height: 85%; max-width: none;">
         <div class="modal-header">
@@ -245,6 +253,7 @@
 </div>
 
 <script>
+    // === 原有 JS 逻辑完全保持不变，不需要改动任何代码 ===
     let currentUser = "";
     let currentRole = "";
     let currentReviewId = "";
@@ -288,7 +297,6 @@
         if(data.status === 'success') switchCard('loginCard');
     }
 
-    // === 申请人进度条 ===
     async function checkMyStatus() {
         const res = await fetch(`/api/my_application?username=${currentUser}`);
         const data = await res.json();
@@ -384,7 +392,6 @@
         }
     }
 
-    // === 管理员逻辑 ===
     function switchAdminTab(tab) {
         document.getElementById('tab_list').classList.remove('active');
         document.getElementById('tab_queue').classList.remove('active');
@@ -443,7 +450,6 @@
         });
     }
 
-    // 🌟 极简队列加载
     async function loadQueue() {
         const res = await fetch('/api/admin/queue');
         const data = await res.json();
@@ -456,7 +462,6 @@
         }
 
         data.data.forEach((row, index) => {
-            // row: [barcode_id, name, department]
             queueList.innerHTML += `
                 <div class="queue-item">
                     <div class="queue-info">
