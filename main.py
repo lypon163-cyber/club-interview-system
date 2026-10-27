@@ -45,10 +45,11 @@ if not os.path.exists(FONT_PATH):
     urllib.request.urlretrieve(font_url, FONT_PATH)
 pdfmetrics.registerFont(TTFont('SimHei', FONT_PATH))
 
-# 🌟 核心修改：所有连接加上 timeout=15，防止高并发锁死
+# 获取数据库连接 (带超时，防锁死)
 def get_db():
     return sqlite3.connect('interview.db', timeout=15)
 
+# 数据库初始化与升级
 def init_db():
     conn = get_db()
     try:
@@ -74,12 +75,13 @@ def init_db():
         conn.commit()
     finally:
         conn.close()
-
 init_db()
 
+# --- 数据模型 ---
 class UserAuth(BaseModel):
     username: str
     password: str
+
 class ApplicationForm(BaseModel):
     username: str
     name: str
@@ -87,9 +89,14 @@ class ApplicationForm(BaseModel):
     phone_last4: str
     department: str
     ps_content: str
+
 class StatusUpdate(BaseModel):
     status: str
 
+class CheckInRequest(BaseModel):
+    barcode_id: str
+
+# --- PDF 生成 ---
 def generate_pdf(app_data):
     barcode_id, name, student_id, phone, dept, ps = app_data[:6]
     pdf_filename = f"{barcode_id}.pdf"
@@ -134,6 +141,7 @@ def generate_pdf(app_data):
     ]))
     elements.append(table)
     elements.append(Spacer(1, 30))
+    
     footer_style = ParagraphStyle('Footer', fontName='SimHei', fontSize=10, textColor=colors.gray, alignment=1)
     elements.append(Paragraph("此表由系统自动生成，面试时请凭此表或专属编号签到。", footer_style))
 
@@ -142,6 +150,7 @@ def generate_pdf(app_data):
     os.remove(qr_path)
     return pdf_filename
 
+# --- 路由与接口 ---
 @app.get("/", response_class=HTMLResponse)
 def read_index():
     with open("apply.html", "r", encoding="utf-8") as f:
@@ -176,8 +185,6 @@ def login(user: UserAuth):
 @app.post("/api/submit")
 def submit_form(form: ApplicationForm):
     barcode_id = "TG" + uuid.uuid4().hex[:8].upper()
-    
-    # 🌟 在写数据库时使用 try...finally 确保一定关闭
     conn = get_db()
     try:
         c = conn.cursor()
@@ -186,12 +193,9 @@ def submit_form(form: ApplicationForm):
         conn.commit()
     except sqlite3.IntegrityError:
         return {"status": "error", "message": "你或该学号已经提交过报名表啦！"}
-    except Exception as e:
-        return {"status": "error", "message": f"报错: {str(e)}"}
     finally:
         conn.close()
 
-    # 数据保存成功后再生成 PDF，绝不占用数据库
     try:
         pdf_file = generate_pdf((barcode_id, form.name, form.student_id, form.phone_last4, form.department, form.ps_content))
         with open(pdf_file, "rb") as f:
@@ -208,7 +212,8 @@ def get_my_app(username: str):
         c = conn.cursor()
         c.execute("SELECT barcode_id, name, student_id, department, status FROM applications WHERE username = ?", (username,))
         res = c.fetchone()
-        if res: return {"status": "success", "data": {"barcode_id": res[0], "name": res[1], "student_id": res[2], "dept": res[3], "status": res[4]}}
+        if res: 
+            return {"status": "success", "data": {"barcode_id": res[0], "name": res[1], "student_id": res[2], "dept": res[3], "status": res[4]}}
         return {"status": "error", "message": "暂无记录"}
     finally:
         conn.close()
@@ -218,7 +223,7 @@ def admin_list():
     conn = get_db()
     try:
         c = conn.cursor()
-        c.execute("SELECT barcode_id, name, student_id, department, phone_last4, status FROM applications")
+        c.execute("SELECT barcode_id, name, student_id, department, phone_last4, status FROM applications ORDER BY id DESC")
         rows = c.fetchall()
         return {"status": "success", "data": rows}
     finally:
@@ -259,7 +264,7 @@ def admin_detail(barcode_id: str):
 @app.post("/api/admin/ai_summarize/{barcode_id}")
 def ai_summarize(barcode_id: str):
     if not client:
-        return {"status": "error", "message": "尚未配置 DEEPSEEK_API_KEY，请检查 .env 文件或环境变量！"}
+        return {"status": "error", "message": "尚未配置 DEEPSEEK_API_KEY！"}
 
     conn = get_db()
     try:
@@ -289,6 +294,35 @@ def ai_summarize(barcode_id: str):
     finally:
         conn.close()
 
+# 🌟 新增：AI 生成面试问题接口
+@app.post("/api/admin/ai_questions/{barcode_id}")
+def ai_questions(barcode_id: str):
+    if not client:
+        return {"status": "error", "message": "尚未配置 DEEPSEEK_API_KEY！"}
+    
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        c.execute("SELECT department, ps_content FROM applications WHERE barcode_id = ?", (barcode_id,))
+        res = c.fetchone()
+        if not res: return {"status": "error", "message": "找不到记录"}
+        
+        dept, ps_content = res
+        prompt = f"申请人意向部门：{dept}。个人陈述：{ps_content}。\n请根据上述信息，为该申请人量身定制 3 个面试提问。要求：问题要有针对性，能考察其真实能力和潜力，用 1. 2. 3. 列表输出，直接输出问题本身，不要任何开场白和客套话。"
+        
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.6,
+            max_tokens=300
+        )
+        questions = response.choices[0].message.content.strip()
+        return {"status": "success", "questions": questions}
+    except Exception as e:
+        return {"status": "error", "message": f"AI 生成失败: {str(e)}"}
+    finally:
+        conn.close()
+
 @app.post("/api/admin/update_status/{barcode_id}")
 def update_status(barcode_id: str, data: StatusUpdate):
     conn = get_db()
@@ -297,6 +331,33 @@ def update_status(barcode_id: str, data: StatusUpdate):
         c.execute("UPDATE applications SET status = ? WHERE barcode_id = ?", (data.status, barcode_id))
         conn.commit()
         return {"status": "success", "message": "状态已更新"}
+    finally:
+        conn.close()
+
+# 🌟 新增：扫码签到接口
+@app.post("/api/admin/checkin")
+def check_in(data: CheckInRequest):
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        barcode_id = data.barcode_id.strip().upper()
+        c.execute("SELECT name, department, status FROM applications WHERE barcode_id = ?", (barcode_id,))
+        res = c.fetchone()
+
+        if not res:
+            return {"status": "error", "message": "❌ 找不到该编号，请确认是否报名！"}
+        
+        name, dept, current_status = res
+        
+        if current_status == '未通过':
+            return {"status": "error", "message": f"❌ {name}（{dept}）预审未通过，无法签到！"}
+        if current_status == '已签到':
+            return {"status": "error", "message": f"⚠️ {name} 已经签到过了，请勿重复签到！"}
+        
+        c.execute("UPDATE applications SET status = '已签到' WHERE barcode_id = ?", (barcode_id,))
+        conn.commit()
+        
+        return {"status": "success", "message": f"✅ {name}（{dept}）签到成功！", "name": name, "dept": dept}
     finally:
         conn.close()
 

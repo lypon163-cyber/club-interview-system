@@ -32,8 +32,9 @@
         .toggle-link:hover { text-decoration: underline; }
         
         .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 15px; }
-        .top-bar h2 { font-size: 18px; font-weight: 600; }
-        .actions { display: flex; gap: 10px; }
+        .nav-tabs { display: flex; gap: 20px; }
+        .nav-tabs span { cursor: pointer; font-size: 16px; font-weight: 500; color: #666; padding-bottom: 5px; }
+        .nav-tabs span.active { color: var(--primary); border-bottom: 2px solid var(--primary); }
         
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
         th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); }
@@ -51,6 +52,13 @@
         
         .ai-box { background: #f5f3ff; border: 1px solid #ddd6fe; padding: 15px; border-radius: 6px; margin: 15px 0; font-size: 14px; line-height: 1.5; color: #4c1d95;}
         .ps-content { background: #f9fafb; padding: 15px; border-radius: 6px; border: 1px solid var(--border); font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+
+        /* 签到专用样式 */
+        .scan-container { text-align: center; padding: 50px 20px; }
+        .scan-input { font-size: 28px !important; text-align: center; letter-spacing: 2px; font-weight: bold; padding: 20px !important; border: 3px solid var(--primary) !important; width: 80% !important; margin: 0 auto; }
+        .scan-result { margin-top: 30px; font-size: 24px; font-weight: bold; min-height: 40px; }
+        .success-text { color: #52c41a; }
+        .error-text { color: #ff4d4f; }
     </style>
 </head>
 <body>
@@ -100,16 +108,33 @@
     <!-- 管理员面板 -->
     <div class="card" id="adminCard">
         <div class="top-bar">
-            <h2>管理员控制台</h2>
+            <div class="nav-tabs">
+                <span id="tab_list" class="active" onclick="switchAdminTab('list')">报名列表</span>
+                <span id="tab_checkin" onclick="switchAdminTab('checkin')">现场扫码签到</span>
+            </div>
             <div class="actions">
-                <button class="btn btn-sm btn-outline" onclick="exportCSV()">导出全部 CSV</button>
-                <button class="btn btn-sm btn-outline" onclick="logout()">退出登录</button>
+                <button class="btn btn-sm btn-outline" onclick="exportCSV()">导出 CSV</button>
+                <button class="btn btn-sm btn-outline" onclick="logout()">退出</button>
             </div>
         </div>
-        <table>
-            <thead><tr><th>编号</th><th>姓名</th><th>学号</th><th>部门</th><th>状态</th><th>操作</th></tr></thead>
-            <tbody id="adminTableBody"></tbody>
-        </table>
+        
+        <!-- 列表视图 -->
+        <div id="adminListView">
+            <table>
+                <thead><tr><th>编号</th><th>姓名</th><th>学号</th><th>部门</th><th>状态</th><th>操作</th></tr></thead>
+                <tbody id="adminTableBody"></tbody>
+            </table>
+        </div>
+
+        <!-- 签到视图 -->
+        <div id="adminCheckInView" style="display: none;">
+            <div class="scan-container">
+                <h2 style="margin-bottom: 20px; color: #333;">请使用扫码枪扫描 PDF 上的编号</h2>
+                <p style="color: #888; margin-bottom: 30px;">（或者手动输入 TG 编号后按回车）</p>
+                <input type="text" id="scanInput" class="scan-input" placeholder="TGXXXXXXXX" autocomplete="off">
+                <div id="scanResult" class="scan-result"></div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -130,6 +155,13 @@
                 <button class="btn btn-sm btn-ai" onclick="generateAISummary()" id="btnAi">✨ 一键生成摘要</button>
             </div>
             <div class="ai-box" id="rv_ai_summary" style="display: none;"></div>
+
+            <!-- 🌟 新增：AI 面试题生成区域 -->
+            <div style="margin-top: 20px; display: flex; align-items: center; justify-content: space-between;">
+                <strong>AI 面试问题定制：</strong>
+                <button class="btn btn-sm btn-ai" onclick="generateAIQuestions()" id="btnAiQ">✨ 生成专属面试题</button>
+            </div>
+            <div class="ai-box" id="rv_ai_questions" style="display: none; background: #e0f2fe; border-color: #bae6fd; color: #0369a1;"></div>
 
             <div style="margin-top: 30px; border-top: 1px solid var(--border); padding-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
                 <button class="btn btn-outline" onclick="updateStatus('未通过')">❌ 预审未通过</button>
@@ -160,6 +192,7 @@
         document.getElementById(id).classList.add('active');
     }
 
+    // 登录
     async function login() {
         const username = document.getElementById('login_user').value;
         const password = document.getElementById('login_pwd').value;
@@ -173,6 +206,7 @@
             currentRole = data.role;
             if(currentRole === 'admin') {
                 switchCard('adminCard');
+                switchAdminTab('list');
                 loadAdminList();
             } else {
                 switchCard('userCard');
@@ -193,6 +227,7 @@
         if(data.status === 'success') switchCard('loginCard');
     }
 
+    // === 申请人逻辑 ===
     async function checkMyStatus() {
         const res = await fetch(`/api/my_application?username=${currentUser}`);
         const data = await res.json();
@@ -238,6 +273,23 @@
         }
     }
 
+    // === 管理员逻辑 ===
+    function switchAdminTab(tab) {
+        document.getElementById('tab_list').classList.remove('active');
+        document.getElementById('tab_checkin').classList.remove('active');
+        
+        if(tab === 'list') {
+            document.getElementById('tab_list').classList.add('active');
+            document.getElementById('adminListView').style.display = 'block';
+            document.getElementById('adminCheckInView').style.display = 'none';
+        } else {
+            document.getElementById('tab_checkin').classList.add('active');
+            document.getElementById('adminListView').style.display = 'none';
+            document.getElementById('adminCheckInView').style.display = 'block';
+            setTimeout(() => document.getElementById('scanInput').focus(), 100);
+        }
+    }
+
     async function loadAdminList() {
         const res = await fetch('/api/admin/list');
         const data = await res.json();
@@ -245,7 +297,11 @@
         tbody.innerHTML = "";
         
         data.data.forEach(row => {
-            let statusColor = row[5] === '初筛通过' ? '#52c41a' : (row[5] === '未通过' ? '#ff4d4f' : '#fa8c16');
+            let statusColor = '#fa8c16'; // 默认橙色
+            if (row[5] === '初筛通过') statusColor = '#52c41a';
+            if (row[5] === '未通过') statusColor = '#ff4d4f';
+            if (row[5] === '已签到') statusColor = '#1890ff';
+
             tbody.innerHTML += `
                 <tr>
                     <td>${row[0]}</td>
@@ -262,6 +318,40 @@
         });
     }
 
+    // === 🌟 扫码签到逻辑 ===
+    const scanInput = document.getElementById('scanInput');
+    const scanResult = document.getElementById('scanResult');
+    
+    scanInput.addEventListener('keypress', async function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const code = scanInput.value.trim();
+            if(!code) return;
+
+            scanResult.className = "scan-result"; 
+            scanResult.innerText = "正在查询...";
+            
+            const res = await fetch('/api/admin/checkin', {
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({barcode_id: code})
+            });
+            const data = await res.json();
+            
+            if (data.status === 'success') {
+                scanResult.className = "scan-result success-text";
+                scanResult.innerText = data.message;
+            } else {
+                scanResult.className = "scan-result error-text";
+                scanResult.innerText = data.message;
+            }
+
+            scanInput.value = "";
+            loadAdminList(); // 刷新列表
+        }
+    });
+
+    // 审核弹窗逻辑
     async function openReview(barcode_id) {
         currentReviewId = barcode_id;
         const res = await fetch(`/api/admin/detail/${barcode_id}`);
@@ -280,12 +370,19 @@
                 aiBox.innerText = "";
                 aiBox.style.display = 'none';
             }
+
+            // 清空之前的面试题
+            const qBox = document.getElementById('rv_ai_questions');
+            qBox.innerText = "";
+            qBox.style.display = 'none';
+
             document.getElementById('reviewModal').style.display = 'flex';
         }
     }
 
     function closeReview() { document.getElementById('reviewModal').style.display = 'none'; }
 
+    // AI 生成摘要
     async function generateAISummary() {
         const btn = document.getElementById('btnAi');
         const aiBox = document.getElementById('rv_ai_summary');
@@ -301,7 +398,26 @@
             aiBox.innerText = data.summary;
             aiBox.style.display = 'block';
         } else {
-            // 如果没配置Key，这里会弹出友好提示
+            alert(data.message);
+        }
+    }
+
+    // 🌟 AI 生成面试题
+    async function generateAIQuestions() {
+        const btn = document.getElementById('btnAiQ');
+        const qBox = document.getElementById('rv_ai_questions');
+        btn.innerText = "出题中...";
+        btn.disabled = true;
+
+        const res = await fetch(`/api/admin/ai_questions/${currentReviewId}`, { method: 'POST' });
+        const data = await res.json();
+        
+        btn.innerText = "✨ 重新出题";
+        btn.disabled = false;
+        if(data.status === 'success') {
+            qBox.innerText = data.questions;
+            qBox.style.display = 'block';
+        } else {
             alert(data.message);
         }
     }
