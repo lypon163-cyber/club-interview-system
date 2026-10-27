@@ -7,6 +7,7 @@ import os
 import urllib.request
 import io
 import csv
+import base64
 import qrcode
 from barcode import Code128
 from barcode.writer import ImageWriter
@@ -64,6 +65,8 @@ def init_db():
         if 'score_skill' not in columns: c.execute("ALTER TABLE applications ADD COLUMN score_skill INTEGER DEFAULT 0")
         if 'score_total' not in columns: c.execute("ALTER TABLE applications ADD COLUMN score_total INTEGER DEFAULT 0")
         if 'eval_comment' not in columns: c.execute("ALTER TABLE applications ADD COLUMN eval_comment TEXT DEFAULT ''")
+        # 🌟 新增：照片字段
+        if 'photo' not in columns: c.execute("ALTER TABLE applications ADD COLUMN photo TEXT DEFAULT ''")
             
         c.execute("SELECT * FROM users WHERE username = 'gjyyadmin'")
         if not c.fetchone():
@@ -84,6 +87,7 @@ class ApplicationForm(BaseModel):
     phone_last4: str
     department: str
     ps_content: str
+    photo: str = "" # 🌟 新增照片
 class StatusUpdate(BaseModel):
     status: str
 class CheckInRequest(BaseModel):
@@ -95,7 +99,9 @@ class ScoreSubmit(BaseModel):
     eval_comment: str
 
 def generate_pdf(app_data):
-    barcode_id, name, student_id, phone, dept, ps = app_data[:6]
+    # app_data 解包增加 photo
+    barcode_id, name, student_id, phone, dept, ps, photo_base64 = app_data[:7]
+    
     pdf_filename = f"{barcode_id}.pdf"
     barcode_path = f"{barcode_id}_b"
     qr_path = f"{barcode_id}_q.png"
@@ -110,11 +116,27 @@ def generate_pdf(app_data):
     text_style = ParagraphStyle('Text', fontName='SimHei', fontSize=11, leading=18)
 
     elements.append(Paragraph("柑橘音乐社团招新报名表", title_style))
-    img_barcode = Image(f"{barcode_path}.png", width=160, height=50)
-    img_qr = Image(qr_path, width=60, height=60)
-    header_data = [[img_qr, img_barcode]]
-    header_table = Table(header_data, colWidths=[60, 160])
-    header_table.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'RIGHT')]))
+    
+    # 头部：左侧条码+二维码，右侧照片
+    img_barcode = Image(f"{barcode_path}.png", width=140, height=45)
+    img_qr = Image(qr_path, width=50, height=50)
+    
+    # 处理照片
+    pdf_photo = Spacer(1, 1) # 默认空
+    if photo_base64:
+        try:
+            img_data = base64.b64decode(photo_base64.split(',')[1])
+            pdf_photo = Image(io.BytesIO(img_data), width=70, height=90)
+        except:
+            pass # 照片解析失败就不放照片
+    
+    header_data = [[img_qr, img_barcode, pdf_photo]]
+    header_table = Table(header_data, colWidths=[50, 140, 80])
+    header_table.setStyle(TableStyle([
+        ('ALIGN', (0,0), (1,0), 'LEFT'),
+        ('ALIGN', (2,0), (2,0), 'RIGHT'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+    ]))
     elements.append(header_table)
     elements.append(Spacer(1, 10))
 
@@ -182,8 +204,8 @@ def submit_form(form: ApplicationForm):
     conn = get_db()
     try:
         c = conn.cursor()
-        c.execute("INSERT INTO applications (barcode_id, username, name, student_id, phone_last4, department, ps_content) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                  (barcode_id, form.username, form.name, form.student_id, form.phone_last4, form.department, form.ps_content))
+        c.execute("INSERT INTO applications (barcode_id, username, name, student_id, phone_last4, department, ps_content, photo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                  (barcode_id, form.username, form.name, form.student_id, form.phone_last4, form.department, form.ps_content, form.photo))
         conn.commit()
     except sqlite3.IntegrityError:
         return {"status": "error", "message": "你或该学号已经提交过报名表啦！"}
@@ -191,7 +213,7 @@ def submit_form(form: ApplicationForm):
         conn.close()
 
     try:
-        pdf_file = generate_pdf((barcode_id, form.name, form.student_id, form.phone_last4, form.department, form.ps_content))
+        pdf_file = generate_pdf((barcode_id, form.name, form.student_id, form.phone_last4, form.department, form.ps_content, form.photo))
         with open(pdf_file, "rb") as f:
             pdf_bytes = f.read()
         os.remove(pdf_file)
@@ -218,7 +240,7 @@ def admin_list(sort: str = "id"):
     conn = get_db()
     try:
         c = conn.cursor()
-        c.execute(f"SELECT barcode_id, name, student_id, department, phone_last4, status, score_total FROM applications ORDER BY {order_by}")
+        c.execute(f"SELECT barcode_id, name, student_id, department, phone_last4, status, score_total, photo FROM applications ORDER BY {order_by}")
         rows = c.fetchall()
         return {"status": "success", "data": rows}
     finally:
@@ -229,13 +251,12 @@ def get_queue():
     conn = get_db()
     try:
         c = conn.cursor()
-        c.execute("SELECT barcode_id, name, department FROM applications WHERE status = '已签到' ORDER BY id ASC")
+        c.execute("SELECT barcode_id, name, department, photo FROM applications WHERE status = '已签到' ORDER BY id ASC")
         rows = c.fetchall()
         return {"status": "success", "data": rows}
     finally:
         conn.close()
 
-# 🌟 新增：一键备份数据库
 @app.get("/api/admin/backup_db")
 def backup_db():
     if os.path.exists('interview.db'):
@@ -249,7 +270,7 @@ def admin_download(barcode_id: str):
     conn = get_db()
     try:
         c = conn.cursor()
-        c.execute("SELECT barcode_id, name, student_id, phone_last4, department, ps_content FROM applications WHERE barcode_id = ?", (barcode_id,))
+        c.execute("SELECT barcode_id, name, student_id, phone_last4, department, ps_content, photo FROM applications WHERE barcode_id = ?", (barcode_id,))
         res = c.fetchone()
     finally:
         conn.close()
@@ -267,7 +288,7 @@ def admin_detail(barcode_id: str):
     conn = get_db()
     try:
         c = conn.cursor()
-        c.execute("SELECT name, department, ps_content, ai_summary, status, score_exp, score_skill, score_total, eval_comment FROM applications WHERE barcode_id = ?", (barcode_id,))
+        c.execute("SELECT name, department, ps_content, ai_summary, status, score_exp, score_skill, score_total, eval_comment, photo FROM applications WHERE barcode_id = ?", (barcode_id,))
         res = c.fetchone()
     finally:
         conn.close()
@@ -275,7 +296,7 @@ def admin_detail(barcode_id: str):
     if res:
         return {"status": "success", "data": {
             "name": res[0], "dept": res[1], "ps": res[2], "ai_summary": res[3], "status": res[4],
-            "score_exp": res[5], "score_skill": res[6], "score_total": res[7], "eval_comment": res[8]
+            "score_exp": res[5], "score_skill": res[6], "score_total": res[7], "eval_comment": res[8], "photo": res[9]
         }}
     return {"status": "error", "message": "找不到记录"}
 
@@ -344,7 +365,6 @@ def submit_score(barcode_id: str, data: ScoreSubmit):
     finally:
         conn.close()
 
-# 🌟 修改：支持兜底模糊搜索（扫码枪坏了也能输学号/姓名/尾号）
 @app.post("/api/admin/checkin")
 def check_in(data: CheckInRequest):
     conn = get_db()
@@ -352,12 +372,10 @@ def check_in(data: CheckInRequest):
         c = conn.cursor()
         code = data.barcode_id.strip().upper()
         
-        # 如果以 TG 开头，走精确匹配
         if code.startswith("TG"):
             c.execute("SELECT barcode_id, name, department, status FROM applications WHERE barcode_id = ?", (code,))
             res = c.fetchone()
         else:
-            # 否则，尝试用姓名、学号、或者手机尾号来模糊搜索
             c.execute("SELECT barcode_id, name, department, status FROM applications WHERE student_id = ? OR name = ? OR phone_last4 = ?", (code, code, code))
             res = c.fetchone()
 
@@ -372,7 +390,6 @@ def check_in(data: CheckInRequest):
         
         c.execute("UPDATE applications SET status = '已签到' WHERE barcode_id = ?", (barcode,))
         conn.commit()
-        # 注意这里返回了真实的 barcode_id，防止前端拿姓名去查PDF报错
         return {"status": "success", "message": f"✅ {name}（{dept}）签到成功！", "barcode_id": barcode}
     finally:
         conn.close()

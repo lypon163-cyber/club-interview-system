@@ -98,6 +98,10 @@
         .queue-name { font-size: 16px; font-weight: bold; color: #333; }
         .queue-dept { font-size: 14px; color: #888; }
         .queue-empty { text-align: center; color: #9ca3af; margin-top: 40px; font-size: 15px; }
+
+        /* 头像样式 */
+        .avatar { width: 40px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border); background: #f0f0f0; }
+        .avatar-large { width: 100px; height: 130px; object-fit: cover; border-radius: 6px; border: 2px solid var(--border); box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
     </style>
 </head>
 <body>
@@ -129,6 +133,12 @@
             <div class="form-group"><label>手机尾号</label><input type="text" id="phone_last4" maxlength="4"></div>
             <div class="form-group"><label>意向部门</label>
                 <select id="department"><option>主唱部</option><option>器乐部</option><option>创作部</option><option>宣传部</option></select>
+            </div>
+            <!-- 🌟 新增照片上传 -->
+            <div class="form-group">
+                <label>免冠照片 (选填，将自动压缩)</label>
+                <input type="file" id="photo_input" accept="image/*" onchange="compressImage()">
+                <img id="photo_preview" class="avatar-large" style="display:none; margin-top: 10px;">
             </div>
             <div class="form-group"><label>个人陈述</label><textarea id="ps_content" rows="5"></textarea></div>
             <button class="btn btn-full" onclick="submitForm()">提交并下载 PDF 报名表</button>
@@ -166,7 +176,7 @@
                 </label>
             </div>
             <table>
-                <thead><tr><th>编号</th><th>姓名</th><th>部门</th><th>状态</th><th>总分</th><th>操作</th></tr></thead>
+                <thead><tr><th>照片</th><th>编号</th><th>姓名</th><th>部门</th><th>状态</th><th>总分</th><th>操作</th></tr></thead>
                 <tbody id="adminTableBody"></tbody>
             </table>
         </div>
@@ -202,7 +212,13 @@
         <div class="modal-body" style="padding: 0;">
             <div class="split-layout">
                 <div class="left-panel" style="padding: 20px;">
-                    <p><strong>意向部门：</strong> <span id="rv_dept" style="color: var(--primary); font-weight: bold;"></span></p>
+                    <!-- 🌟 详情中展示大图 -->
+                    <div style="display: flex; gap: 20px; align-items: flex-start;">
+                        <img id="rv_photo" class="avatar-large" style="display:none;">
+                        <div>
+                            <p><strong>意向部门：</strong> <span id="rv_dept" style="color: var(--primary); font-weight: bold;"></span></p>
+                        </div>
+                    </div>
                     
                     <div style="margin-top: 20px; display: flex; align-items: center; justify-content: space-between;">
                         <strong style="font-size: 15px;">AI 核心摘要：</strong>
@@ -261,10 +277,38 @@
     let currentRole = "";
     let currentReviewId = "";
     let lastScannedCode = "";
+    let base64Photo = ""; // 存放照片的Base64
 
     function switchCard(id) {
         document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
         document.getElementById(id).classList.add('active');
+    }
+
+    // 🌟 压缩图片逻辑
+    function compressImage() {
+        const file = document.getElementById('photo_input').files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = new Image();
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                // 固定压成 3:4 比例 (120x160)，清晰度0.8
+                canvas.width = 120;
+                canvas.height = 160;
+                ctx.drawImage(img, 0, 0, 120, 160);
+                
+                base64Photo = canvas.toDataURL('image/jpeg', 0.8);
+                
+                const preview = document.getElementById('photo_preview');
+                preview.src = base64Photo;
+                preview.style.display = 'block';
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
     }
 
     async function login() {
@@ -371,7 +415,8 @@
             student_id: document.getElementById('student_id').value,
             phone_last4: document.getElementById('phone_last4').value,
             department: document.getElementById('department').value,
-            ps_content: document.getElementById('ps_content').value
+            ps_content: document.getElementById('ps_content').value,
+            photo: base64Photo // 加上压缩后的照片
         };
         if(!data.name || !data.student_id) return alert("请填写必填项！");
 
@@ -436,9 +481,13 @@
             if (row[5] === '已录取') statusColor = '#52c41a';
 
             let scoreDisplay = row[6] > 0 ? `<strong style="color: #d97706;">${row[6]}分</strong>` : '<span style="color:#ccc;">未打分</span>';
+            
+            // 头像渲染
+            let avatarHtml = row[7] ? `<img src="${row[7]}" class="avatar">` : `<div class="avatar" style="display:flex;align-items:center;justify-content:center;color:#ccc;font-size:12px;">无</div>`;
 
             tbody.innerHTML += `
                 <tr>
+                    <td>${avatarHtml}</td>
                     <td>${row[0]}</td>
                     <td>${row[1]}</td>
                     <td>${row[3]}</td>
@@ -465,10 +514,13 @@
         }
 
         data.data.forEach((row, index) => {
+            let avatarHtml = row[3] ? `<img src="${row[3]}" class="avatar" style="width: 50px; height: 60px;">` : '';
+            
             queueList.innerHTML += `
                 <div class="queue-item">
                     <div class="queue-info">
                         <div class="queue-index">${index + 1}</div>
+                        ${avatarHtml}
                         <div>
                             <span class="queue-name">${row[1]}</span>
                             <span class="queue-dept">（${row[2]}）</span>
@@ -506,7 +558,6 @@
             if (data.status === 'success') {
                 scanResult.className = "scan-result success-text";
                 scanResult.innerText = data.message;
-                // 🌟 接收后端返回的真实 barcode_id (防止模糊搜索输入的是姓名)
                 lastScannedCode = data.barcode_id;
                 scanActionBox.style.display = 'flex'; 
             } else {
@@ -529,6 +580,15 @@
             document.getElementById('rv_name').innerText = data.data.name;
             document.getElementById('rv_dept').innerText = data.data.dept;
             document.getElementById('rv_ps').innerText = data.data.ps;
+            
+            // 渲染大头像
+            const rvPhoto = document.getElementById('rv_photo');
+            if(data.data.photo) {
+                rvPhoto.src = data.data.photo;
+                rvPhoto.style.display = 'block';
+            } else {
+                rvPhoto.style.display = 'none';
+            }
             
             const aiBox = document.getElementById('rv_ai_summary');
             if(data.data.ai_summary) {
@@ -615,11 +675,7 @@
         document.getElementById('pdfIframe').src = "";
     }
     function exportCSV() { window.open('/api/admin/export', '_blank'); }
-    
-    // 🌟 备份数据库
-    function backupDB() {
-        window.open('/api/admin/backup_db', '_blank');
-    }
+    function backupDB() { window.open('/api/admin/backup_db', '_blank'); }
 
     function logout() {
         currentUser = ""; currentRole = "";
