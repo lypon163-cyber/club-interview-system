@@ -45,11 +45,9 @@ if not os.path.exists(FONT_PATH):
     urllib.request.urlretrieve(font_url, FONT_PATH)
 pdfmetrics.registerFont(TTFont('SimHei', FONT_PATH))
 
-# 获取数据库连接 (带超时，防锁死)
 def get_db():
     return sqlite3.connect('interview.db', timeout=15)
 
-# 数据库初始化与升级
 def init_db():
     conn = get_db()
     try:
@@ -77,11 +75,9 @@ def init_db():
         conn.close()
 init_db()
 
-# --- 数据模型 ---
 class UserAuth(BaseModel):
     username: str
     password: str
-
 class ApplicationForm(BaseModel):
     username: str
     name: str
@@ -89,14 +85,11 @@ class ApplicationForm(BaseModel):
     phone_last4: str
     department: str
     ps_content: str
-
 class StatusUpdate(BaseModel):
     status: str
-
 class CheckInRequest(BaseModel):
     barcode_id: str
 
-# --- PDF 生成 ---
 def generate_pdf(app_data):
     barcode_id, name, student_id, phone, dept, ps = app_data[:6]
     pdf_filename = f"{barcode_id}.pdf"
@@ -150,7 +143,6 @@ def generate_pdf(app_data):
     os.remove(qr_path)
     return pdf_filename
 
-# --- 路由与接口 ---
 @app.get("/", response_class=HTMLResponse)
 def read_index():
     with open("apply.html", "r", encoding="utf-8") as f:
@@ -294,7 +286,6 @@ def ai_summarize(barcode_id: str):
     finally:
         conn.close()
 
-# 🌟 新增：AI 生成面试问题接口
 @app.post("/api/admin/ai_questions/{barcode_id}")
 def ai_questions(barcode_id: str):
     if not client:
@@ -334,7 +325,6 @@ def update_status(barcode_id: str, data: StatusUpdate):
     finally:
         conn.close()
 
-# 🌟 新增：扫码签到接口
 @app.post("/api/admin/checkin")
 def check_in(data: CheckInRequest):
     conn = get_db()

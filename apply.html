@@ -59,6 +59,10 @@
         .scan-result { margin-top: 30px; font-size: 24px; font-weight: bold; min-height: 40px; }
         .success-text { color: #52c41a; }
         .error-text { color: #ff4d4f; }
+        
+        /* 签到后的操作按钮组 */
+        .action-btn-group { display: none; margin-top: 20px; justify-content: center; gap: 15px; }
+        .action-btn-group .btn { font-size: 16px; padding: 12px 24px; }
     </style>
 </head>
 <body>
@@ -132,7 +136,14 @@
                 <h2 style="margin-bottom: 20px; color: #333;">请使用扫码枪扫描 PDF 上的编号</h2>
                 <p style="color: #888; margin-bottom: 30px;">（或者手动输入 TG 编号后按回车）</p>
                 <input type="text" id="scanInput" class="scan-input" placeholder="TGXXXXXXXX" autocomplete="off">
+                
                 <div id="scanResult" class="scan-result"></div>
+                
+                <!-- 签到成功后的操作按钮组 -->
+                <div id="scanActionBox" class="action-btn-group">
+                    <button class="btn" onclick="previewPDF(lastScannedCode)">📄 查看 PDF 报名表</button>
+                    <button class="btn btn-outline" onclick="openReview(lastScannedCode)">🔍 查看文字详情</button>
+                </div>
             </div>
         </div>
     </div>
@@ -156,7 +167,7 @@
             </div>
             <div class="ai-box" id="rv_ai_summary" style="display: none;"></div>
 
-            <!-- 🌟 新增：AI 面试题生成区域 -->
+            <!-- AI 面试题生成区域 -->
             <div style="margin-top: 20px; display: flex; align-items: center; justify-content: space-between;">
                 <strong>AI 面试问题定制：</strong>
                 <button class="btn btn-sm btn-ai" onclick="generateAIQuestions()" id="btnAiQ">✨ 生成专属面试题</button>
@@ -321,15 +332,18 @@
     // === 🌟 扫码签到逻辑 ===
     const scanInput = document.getElementById('scanInput');
     const scanResult = document.getElementById('scanResult');
+    const scanActionBox = document.getElementById('scanActionBox');
+    let lastScannedCode = ""; // 记录刚刚扫码签到的人
     
     scanInput.addEventListener('keypress', async function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
-            const code = scanInput.value.trim();
+            const code = scanInput.value.trim().toUpperCase(); // 自动转大写
             if(!code) return;
 
             scanResult.className = "scan-result"; 
             scanResult.innerText = "正在查询...";
+            scanActionBox.style.display = 'none'; // 先隐藏按钮
             
             const res = await fetch('/api/admin/checkin', {
                 method: 'POST', 
@@ -341,13 +355,17 @@
             if (data.status === 'success') {
                 scanResult.className = "scan-result success-text";
                 scanResult.innerText = data.message;
+                
+                // 🌟 签到成功，记录编号并显示下方按钮
+                lastScannedCode = code;
+                scanActionBox.style.display = 'flex'; 
             } else {
                 scanResult.className = "scan-result error-text";
                 scanResult.innerText = data.message;
             }
 
             scanInput.value = "";
-            loadAdminList(); // 刷新列表
+            loadAdminList(); // 刷新列表状态
         }
     });
 
@@ -402,7 +420,7 @@
         }
     }
 
-    // 🌟 AI 生成面试题
+    // AI 生成面试题
     async function generateAIQuestions() {
         const btn = document.getElementById('btnAiQ');
         const qBox = document.getElementById('rv_ai_questions');
