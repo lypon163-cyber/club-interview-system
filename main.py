@@ -30,7 +30,7 @@ if DEEPSEEK_API_KEY:
     print("✅ DeepSeek API 初始化成功！")
 else:
     client = None
-    print("⚠️ 警告：未找到 DEEPSEEK_API_KEY，网页正常运行，AI 功能不可用。")
+    print("⚠️ 警告：未找到 DEEPSEEK_API_KEY。")
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -58,18 +58,12 @@ def init_db():
         
         c.execute("PRAGMA table_info(applications)")
         columns = [column[1] for column in c.fetchall()]
-        if 'status' not in columns:
-            c.execute("ALTER TABLE applications ADD COLUMN status TEXT DEFAULT '待审核'")
-        if 'ai_summary' not in columns:
-            c.execute("ALTER TABLE applications ADD COLUMN ai_summary TEXT DEFAULT ''")
-        if 'score_exp' not in columns:
-            c.execute("ALTER TABLE applications ADD COLUMN score_exp INTEGER DEFAULT 0")
-        if 'score_skill' not in columns:
-            c.execute("ALTER TABLE applications ADD COLUMN score_skill INTEGER DEFAULT 0")
-        if 'score_total' not in columns:
-            c.execute("ALTER TABLE applications ADD COLUMN score_total INTEGER DEFAULT 0")
-        if 'eval_comment' not in columns:
-            c.execute("ALTER TABLE applications ADD COLUMN eval_comment TEXT DEFAULT ''")
+        if 'status' not in columns: c.execute("ALTER TABLE applications ADD COLUMN status TEXT DEFAULT '待审核'")
+        if 'ai_summary' not in columns: c.execute("ALTER TABLE applications ADD COLUMN ai_summary TEXT DEFAULT ''")
+        if 'score_exp' not in columns: c.execute("ALTER TABLE applications ADD COLUMN score_exp INTEGER DEFAULT 0")
+        if 'score_skill' not in columns: c.execute("ALTER TABLE applications ADD COLUMN score_skill INTEGER DEFAULT 0")
+        if 'score_total' not in columns: c.execute("ALTER TABLE applications ADD COLUMN score_total INTEGER DEFAULT 0")
+        if 'eval_comment' not in columns: c.execute("ALTER TABLE applications ADD COLUMN eval_comment TEXT DEFAULT ''")
             
         c.execute("SELECT * FROM users WHERE username = 'gjyyadmin'")
         if not c.fetchone():
@@ -230,14 +224,13 @@ def admin_list(sort: str = "id"):
     finally:
         conn.close()
 
-# 🌟 新增：获取现场面试队列
+# 🌟 极简队列：只查已签到的人
 @app.get("/api/admin/queue")
 def get_queue():
     conn = get_db()
     try:
         c = conn.cursor()
-        # 获取等待中（已签到）和正在面试中的人
-        c.execute("SELECT barcode_id, name, department, status FROM applications WHERE status IN ('已签到', '面试中') ORDER BY id ASC")
+        c.execute("SELECT barcode_id, name, department FROM applications WHERE status = '已签到' ORDER BY id ASC")
         rows = c.fetchall()
         return {"status": "success", "data": rows}
     finally:
@@ -355,8 +348,8 @@ def check_in(data: CheckInRequest):
         if not res: return {"status": "error", "message": "❌ 找不到该编号！"}
         name, dept, current_status = res
         if current_status == '未通过': return {"status": "error", "message": f"❌ {name} 预审未通过！"}
-        if current_status in ['已签到', '面试中', '已录取', '未录取']:
-            return {"status": "error", "message": f"⚠️ {name} 当前状态为 {current_status}！"}
+        if current_status in ['已签到', '已录取', '未录取']:
+            return {"status": "error", "message": f"⚠️ {name} 当前状态为 {current_status}，无需重复签到！"}
         
         c.execute("UPDATE applications SET status = '已签到' WHERE barcode_id = ?", (barcode_id,))
         conn.commit()
