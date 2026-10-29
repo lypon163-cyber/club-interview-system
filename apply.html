@@ -2,17 +2,17 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>柑橘音乐 - 招新系统</title>
+    <title>浙江万里学院共青团校社团管理部招新系统</title>
     <style>
         :root { --primary: #1890ff; --bg: #f0f2f5; --text-main: #333333; --border: #d9d9d9; }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
         body { background: var(--bg); min-height: 100vh; display: flex; justify-content: center; align-items: flex-start; padding-top: 5vh; color: var(--text-main); }
-        .container { width: 100%; max-width: 950px; padding: 20px; }
+        .container { width: 100%; max-width: 1000px; padding: 20px; }
         
         .card { background: #ffffff; padding: 40px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: none; }
         .card.active { display: block; animation: fadeIn 0.3s ease; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        h1 { text-align: center; color: #1f2937; font-size: 24px; margin-bottom: 30px; font-weight: 600; }
+        h1 { text-align: center; color: #1f2937; font-size: 22px; margin-bottom: 30px; font-weight: 600; }
         
         .form-group { margin-bottom: 20px; }
         label { display: block; margin-bottom: 8px; color: #4b5563; font-size: 14px; font-weight: 500; }
@@ -99,48 +99,75 @@
         .queue-dept { font-size: 14px; color: #888; }
         .queue-empty { text-align: center; color: #9ca3af; margin-top: 40px; font-size: 15px; }
 
-        /* 头像样式 */
         .avatar { width: 40px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border); background: #f0f0f0; }
         .avatar-large { width: 100px; height: 130px; object-fit: cover; border-radius: 6px; border: 2px solid var(--border); box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+
+        /* 网格布局，让表单更好看 */
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .form-grid .full-width { grid-column: span 2; }
+        .captcha-box { display: flex; gap: 10px; align-items: center; }
+        .captcha-box input { flex: 1; }
+        .captcha-box img { height: 40px; cursor: pointer; border-radius: 4px; border: 1px solid var(--border); }
     </style>
 </head>
 <body>
 <div class="container">
+    <!-- 登录 -->
     <div class="card active" id="loginCard" style="max-width: 400px; margin: 0 auto;">
-        <h1>柑橘音乐 招新系统</h1>
+        <h1>浙江万里学院共青团校社团管理部招新系统</h1>
         <div class="form-group"><label>账号</label><input type="text" id="login_user"></div>
         <div class="form-group"><label>密码</label><input type="password" id="login_pwd"></div>
         <button class="btn btn-full" onclick="login()">登 录</button>
         <span class="toggle-link" onclick="switchCard('registerCard')">没有账号？点击注册</span>
     </div>
 
+    <!-- 注册 -->
     <div class="card" id="registerCard" style="max-width: 400px; margin: 0 auto;">
         <h1>创建账户</h1>
         <div class="form-group"><label>账号</label><input type="text" id="reg_user"></div>
         <div class="form-group"><label>密码</label><input type="password" id="reg_pwd"></div>
+        <div class="form-group"><label>确认密码</label><input type="password" id="reg_pwd_confirm"></div>
+        <div class="form-group captcha-box">
+            <input type="text" id="reg_captcha" placeholder="输入验证码" maxlength="4">
+            <img id="captcha_img" src="" title="点击刷新" onclick="refreshCaptcha()">
+        </div>
         <button class="btn btn-full" onclick="register()">注 册</button>
         <span class="toggle-link" onclick="switchCard('loginCard')">已有账号？返回登录</span>
     </div>
 
+    <!-- 申请人面板 -->
     <div class="card" id="userCard">
         <div class="top-bar">
             <h2>申请人中心</h2>
             <button class="btn btn-sm btn-outline" onclick="logout()">退出登录</button>
         </div>
         <div id="applySection">
-            <div class="form-group"><label>真实姓名</label><input type="text" id="name"></div>
-            <div class="form-group"><label>学号</label><input type="text" id="student_id"></div>
-            <div class="form-group"><label>手机尾号</label><input type="text" id="phone_last4" maxlength="4"></div>
-            <div class="form-group"><label>意向部门</label>
-                <select id="department"><option>主唱部</option><option>器乐部</option><option>创作部</option><option>宣传部</option></select>
+            <div class="form-grid">
+                <div class="form-group"><label>真实姓名</label><input type="text" id="name"></div>
+                <div class="form-group"><label>学号</label><input type="text" id="student_id"></div>
+                <div class="form-group"><label>班级</label><input type="text" id="class_name"></div>
+                <div class="form-group"><label>学院</label><input type="text" id="college"></div>
+                <div class="form-group"><label>政治面貌</label>
+                    <select id="political_status">
+                        <option>共青团员</option><option>群众</option><option>中共预备党员</option><option>中共党员</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>学年GPA与排名 (大一-大二)</label><input type="text" id="gpa_rank" placeholder="例如：3.8 / 前10%"></div>
+                <div class="form-group"><label>联系方式 (电话/微信)</label><input type="text" id="contact"></div>
+                <div class="form-group"><label>意向部门</label>
+                    <select id="department">
+                        <option value="活动部">活动部</option><option value="办公室">办公室</option>
+                        <option value="外联部">外联部</option><option value="社联部">社联部</option>
+                        <option value="文艺部">文艺部</option><option value="宣传部">宣传部</option>
+                    </select>
+                </div>
+                <div class="form-group full-width">
+                    <label>免冠照片 (选填，将自动压缩)</label>
+                    <input type="file" id="photo_input" accept="image/*" onchange="compressImage()">
+                    <img id="photo_preview" class="avatar-large" style="display:none; margin-top: 10px;">
+                </div>
+                <div class="form-group full-width"><label>个人陈述</label><textarea id="ps_content" rows="5"></textarea></div>
             </div>
-            <!-- 🌟 新增照片上传 -->
-            <div class="form-group">
-                <label>免冠照片 (选填，将自动压缩)</label>
-                <input type="file" id="photo_input" accept="image/*" onchange="compressImage()">
-                <img id="photo_preview" class="avatar-large" style="display:none; margin-top: 10px;">
-            </div>
-            <div class="form-group"><label>个人陈述</label><textarea id="ps_content" rows="5"></textarea></div>
             <button class="btn btn-full" onclick="submitForm()">提交并下载 PDF 报名表</button>
         </div>
         
@@ -159,10 +186,11 @@
         <div class="top-bar">
             <div class="nav-tabs">
                 <span id="tab_list" class="active" onclick="switchAdminTab('list')">报名列表</span>
-                <span id="tab_queue" onclick="switchAdminTab('queue')">现场候场名单</span>
+                <span id="tab_queue" onclick="switchAdminTab('queue')">候场名单</span>
                 <span id="tab_checkin" onclick="switchAdminTab('checkin')">扫码签到</span>
             </div>
             <div class="actions">
+                <span id="currentAdminDept" style="font-size: 14px; color: #666; margin-right: 15px; font-weight: bold;"></span>
                 <button class="btn btn-sm" style="background: #fa8c16;" onclick="backupDB()">☁️ 备份数据库</button>
                 <button class="btn btn-sm btn-outline" onclick="exportCSV()">导出 CSV</button>
                 <button class="btn btn-sm btn-outline" onclick="logout()">退出</button>
@@ -189,7 +217,7 @@
         <div id="adminCheckInView" style="display: none;">
             <div class="scan-container">
                 <h2 style="margin-bottom: 20px; color: #333;">请使用扫码枪扫描 PDF 上的编号</h2>
-                <p style="color: #888; margin-bottom: 30px;">（如果扫码枪坏了，可直接输入学号/姓名/手机尾号按回车）</p>
+                <p style="color: #888; margin-bottom: 30px;">（如果扫码枪坏了，可直接输入学号/姓名/联系方式按回车）</p>
                 <input type="text" id="scanInput" class="scan-input" placeholder="扫码或手动输入..." autocomplete="off">
                 <div id="scanResult" class="scan-result"></div>
                 <div id="scanActionBox" class="action-btn-group">
@@ -212,11 +240,15 @@
         <div class="modal-body" style="padding: 0;">
             <div class="split-layout">
                 <div class="left-panel" style="padding: 20px;">
-                    <!-- 🌟 详情中展示大图 -->
                     <div style="display: flex; gap: 20px; align-items: flex-start;">
                         <img id="rv_photo" class="avatar-large" style="display:none;">
                         <div>
                             <p><strong>意向部门：</strong> <span id="rv_dept" style="color: var(--primary); font-weight: bold;"></span></p>
+                            <p style="margin-top: 10px;"><strong>班级：</strong> <span id="rv_class"></span></p>
+                            <p style="margin-top: 10px;"><strong>学院：</strong> <span id="rv_college"></span></p>
+                            <p style="margin-top: 10px;"><strong>政治面貌：</strong> <span id="rv_political"></span></p>
+                            <p style="margin-top: 10px;"><strong>GPA与排名：</strong> <span id="rv_gpa"></span></p>
+                            <p style="margin-top: 10px;"><strong>联系方式：</strong> <span id="rv_contact"></span></p>
                         </div>
                     </div>
                     
@@ -275,36 +307,40 @@
 <script>
     let currentUser = "";
     let currentRole = "";
+    let currentDept = "";
     let currentReviewId = "";
     let lastScannedCode = "";
-    let base64Photo = ""; // 存放照片的Base64
+    let base64Photo = "";
+    let currentCaptchaId = "";
 
     function switchCard(id) {
         document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
         document.getElementById(id).classList.add('active');
+        if(id === 'registerCard') refreshCaptcha();
     }
 
-    // 🌟 压缩图片逻辑
+    // 🌟 验证码加载
+    async function refreshCaptcha() {
+        const res = await fetch('/api/captcha');
+        const data = await res.json();
+        document.getElementById('captcha_img').src = data.image;
+        currentCaptchaId = data.captcha_id;
+    }
+
     function compressImage() {
         const file = document.getElementById('photo_input').files[0];
         if (!file) return;
-
         const reader = new FileReader();
         reader.onload = function(e) {
             const img = new Image();
             img.onload = function() {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
-                // 固定压成 3:4 比例 (120x160)，清晰度0.8
-                canvas.width = 120;
-                canvas.height = 160;
+                canvas.width = 120; canvas.height = 160;
                 ctx.drawImage(img, 0, 0, 120, 160);
-                
                 base64Photo = canvas.toDataURL('image/jpeg', 0.8);
-                
-                const preview = document.getElementById('photo_preview');
-                preview.src = base64Photo;
-                preview.style.display = 'block';
+                document.getElementById('photo_preview').src = base64Photo;
+                document.getElementById('photo_preview').style.display = 'block';
             };
             img.src = e.target.result;
         };
@@ -322,8 +358,11 @@
         if (data.status === 'success') {
             currentUser = username;
             currentRole = data.role;
+            currentDept = data.department;
+            
             if(currentRole === 'admin') {
                 switchCard('adminCard');
+                document.getElementById('currentAdminDept').innerText = currentDept === 'ALL' ? '全局管理员' : `当前管理：${currentDept}`;
                 switchAdminTab('list');
             } else {
                 switchCard('userCard');
@@ -332,16 +371,26 @@
         } else alert(data.message);
     }
 
+    // 🌟 注册（验证码+确认密码）
     async function register() {
         const username = document.getElementById('reg_user').value;
         const password = document.getElementById('reg_pwd').value;
+        const confirm_password = document.getElementById('reg_pwd_confirm').value;
+        const captcha_text = document.getElementById('reg_captcha').value;
+
+        if(!username || !password) return alert("请填写账号密码！");
+        
         const res = await fetch('/api/register', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({username, password})
+            body: JSON.stringify({username, password, confirm_password, captcha_id: currentCaptchaId, captcha_text})
         });
         const data = await res.json();
         alert(data.message);
-        if(data.status === 'success') switchCard('loginCard');
+        if(data.status === 'success') {
+            switchCard('loginCard');
+        } else {
+            refreshCaptcha(); // 失败后刷新验证码
+        }
     }
 
     async function checkMyStatus() {
@@ -369,9 +418,7 @@
             if (status === '未通过' || status === '未录取') {
                 currentStepIndex = -1; 
             } else {
-                steps.forEach((s, i) => {
-                    if (s.match.includes(status)) currentStepIndex = i;
-                });
+                steps.forEach((s, i) => { if (s.match.includes(status)) currentStepIndex = i; });
             }
 
             steps.forEach((step, index) => {
@@ -385,12 +432,7 @@
                     if (index === currentStepIndex) className = 'active';
                 }
                 
-                html += `
-                    <div class="step ${className}">
-                        <div class="step-circle">${index + 1}</div>
-                        <div class="step-text">${step.key}</div>
-                    </div>
-                `;
+                html += `<div class="step ${className}"><div class="step-circle">${index + 1}</div><div class="step-text">${step.key}</div></div>`;
             });
             
             stepsContainer.innerHTML = html;
@@ -399,7 +441,7 @@
             else if (status === '初筛通过') { statusMessage.innerText = '恭喜！初筛已通过。'; statusMessage.style.color = '#52c41a'; }
             else if (status === '未通过') { statusMessage.innerText = '很遗憾，初筛未能通过。'; statusMessage.style.color = '#ff4d4f'; }
             else if (status === '已签到') { statusMessage.innerText = '已签到，请在候场区等待面试。'; statusMessage.style.color = '#1890ff'; }
-            else if (status === '已录取') { statusMessage.innerText = '🎉 恭喜你！你已被柑橘音乐录取！'; statusMessage.style.color = '#52c41a'; }
+            else if (status === '已录取') { statusMessage.innerText = '🎉 恭喜你！你已被录取！'; statusMessage.style.color = '#52c41a'; }
             else if (status === '未录取') { statusMessage.innerText = '很遗憾，本次面试未能通过。'; statusMessage.style.color = '#ff4d4f'; }
             
         } else {
@@ -412,13 +454,17 @@
         const data = {
             username: currentUser,
             name: document.getElementById('name').value,
+            class_name: document.getElementById('class_name').value,
+            college: document.getElementById('college').value,
             student_id: document.getElementById('student_id').value,
-            phone_last4: document.getElementById('phone_last4').value,
+            political_status: document.getElementById('political_status').value,
+            gpa_rank: document.getElementById('gpa_rank').value,
+            contact: document.getElementById('contact').value,
             department: document.getElementById('department').value,
             ps_content: document.getElementById('ps_content').value,
-            photo: base64Photo // 加上压缩后的照片
+            photo: base64Photo
         };
-        if(!data.name || !data.student_id) return alert("请填写必填项！");
+        if(!data.name || !data.student_id || !data.class_name) return alert("请填写必填项！");
 
         const res = await fetch('/api/submit', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -468,7 +514,8 @@
         const sortByScore = document.getElementById('sortScoreCheckbox').checked;
         const sortParam = sortByScore ? 'score' : 'id';
         
-        const res = await fetch(`/api/admin/list?sort=${sortParam}`);
+        // 🌟 传入了当前管理员的用户名，后端会据此过滤
+        const res = await fetch(`/api/admin/list?admin_user=${currentUser}&sort=${sortParam}`);
         const data = await res.json();
         const tbody = document.getElementById('adminTableBody');
         tbody.innerHTML = "";
@@ -481,8 +528,6 @@
             if (row[5] === '已录取') statusColor = '#52c41a';
 
             let scoreDisplay = row[6] > 0 ? `<strong style="color: #d97706;">${row[6]}分</strong>` : '<span style="color:#ccc;">未打分</span>';
-            
-            // 头像渲染
             let avatarHtml = row[7] ? `<img src="${row[7]}" class="avatar">` : `<div class="avatar" style="display:flex;align-items:center;justify-content:center;color:#ccc;font-size:12px;">无</div>`;
 
             tbody.innerHTML += `
@@ -503,19 +548,18 @@
     }
 
     async function loadQueue() {
-        const res = await fetch('/api/admin/queue');
+        const res = await fetch(`/api/admin/queue?admin_user=${currentUser}`);
         const data = await res.json();
         const queueList = document.getElementById('queueList');
         queueList.innerHTML = '';
 
         if (data.data.length === 0) {
-            queueList.innerHTML = '<div class="queue-empty">当前无人候场 (请确保已完成扫码签到)</div>';
+            queueList.innerHTML = '<div class="queue-empty">当前无人候场</div>';
             return;
         }
 
         data.data.forEach((row, index) => {
             let avatarHtml = row[3] ? `<img src="${row[3]}" class="avatar" style="width: 50px; height: 60px;">` : '';
-            
             queueList.innerHTML += `
                 <div class="queue-item">
                     <div class="queue-info">
@@ -579,24 +623,20 @@
         if(data.status === 'success') {
             document.getElementById('rv_name').innerText = data.data.name;
             document.getElementById('rv_dept').innerText = data.data.dept;
+            document.getElementById('rv_class').innerText = data.data.class_name;
+            document.getElementById('rv_college').innerText = data.data.college;
+            document.getElementById('rv_political').innerText = data.data.political_status;
+            document.getElementById('rv_gpa').innerText = data.data.gpa_rank;
+            document.getElementById('rv_contact').innerText = data.data.contact;
             document.getElementById('rv_ps').innerText = data.data.ps;
             
-            // 渲染大头像
             const rvPhoto = document.getElementById('rv_photo');
-            if(data.data.photo) {
-                rvPhoto.src = data.data.photo;
-                rvPhoto.style.display = 'block';
-            } else {
-                rvPhoto.style.display = 'none';
-            }
+            if(data.data.photo) { rvPhoto.src = data.data.photo; rvPhoto.style.display = 'block'; } 
+            else { rvPhoto.style.display = 'none'; }
             
             const aiBox = document.getElementById('rv_ai_summary');
-            if(data.data.ai_summary) {
-                aiBox.innerText = data.data.ai_summary;
-                aiBox.style.display = 'block';
-            } else {
-                aiBox.style.display = 'none';
-            }
+            if(data.data.ai_summary) { aiBox.innerText = data.data.ai_summary; aiBox.style.display = 'block'; } 
+            else { aiBox.style.display = 'none'; }
 
             document.getElementById('rv_ai_questions').style.display = 'none';
             document.getElementById('score_exp').value = data.data.score_exp || '';
@@ -674,11 +714,11 @@
         document.getElementById('pdfModal').style.display = 'none';
         document.getElementById('pdfIframe').src = "";
     }
-    function exportCSV() { window.open('/api/admin/export', '_blank'); }
+    function exportCSV() { window.open(`/api/admin/export?admin_user=${currentUser}`, '_blank'); }
     function backupDB() { window.open('/api/admin/backup_db', '_blank'); }
 
     function logout() {
-        currentUser = ""; currentRole = "";
+        currentUser = ""; currentRole = ""; currentDept = "";
         document.getElementById('login_user').value = "";
         document.getElementById('login_pwd').value = "";
         switchCard('loginCard');
